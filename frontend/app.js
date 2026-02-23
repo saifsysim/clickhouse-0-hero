@@ -20,7 +20,29 @@ function switchTab(tab, btn) {
     if (tab === 'cluster') loadCluster();
     if (tab === 'query') loadPlaygroundTables();
     if (tab === 'ai') checkAIStatus();
+    // Learning Guide — no data to load
 }
+
+// Navigate to a tab from inside the Learning Guide
+function goToTab(tab) {
+    const btn = document.querySelector(`[data-tab="${tab}"]`);
+    switchTab(tab, btn);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Show a guide module, update progress + sidebar active state
+function showGuideModule(num, btn) {
+    const total = 11; // 7 ClickHouse + 4 AI modules
+    document.querySelectorAll('.guide-lesson').forEach(l => l.style.display = 'none');
+    document.querySelectorAll('.guide-mod-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`glesson-${num}`).style.display = '';
+    if (btn) btn.classList.add('active');
+    document.getElementById('guideProgBar').style.width = (num / total * 100).toFixed(1) + '%';
+    document.getElementById('guideProgLbl').textContent = `Module ${num} of ${total}`;
+    document.querySelector('.guide-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 async function checkHealth() {

@@ -96,6 +96,17 @@
         SQL Playground
       </button>
 
+      <div class="nav-section-label">Learn</div>
+      <button class="nav-item" data-tab="guide" onclick="switchTab('guide',this)" id="guide-nav-btn">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" stroke="currentColor" stroke-width="2"
+            stroke-linejoin="round" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" stroke="currentColor" stroke-width="2"
+            stroke-linejoin="round" />
+        </svg>
+        Learning Guide
+      </button>
+
       <div class="nav-section-label">AI Layer</div>
       <button class="nav-item ai-nav-item" data-tab="ai" onclick="switchTab('ai',this)" id="ai-nav-btn">
         <svg viewBox="0 0 24 24" fill="none">
@@ -1149,6 +1160,608 @@
         </div>
       </div>
 
+    </section>
+
+    <!-- ─── LEARNING GUIDE (ClickHouse + AI) ──────────────────────────────── -->
+    <section class="tab-panel" id="tab-guide">
+      <div class="guide-layout">
+        <aside class="guide-sidebar glass">
+          <div class="guide-sidebar-hd">
+            <div class="guide-ttl">📖 Full Stack Guide</div>
+            <div class="guide-sub">11 modules · ClickHouse + AI</div>
+            <div class="guide-prog-wrap">
+              <div class="guide-prog-bar" id="guideProgBar" style="width:9.1%"></div>
+            </div>
+            <div class="guide-prog-lbl" id="guideProgLbl">Module 1 of 11</div>
+          </div>
+          <div class="guide-mod-list">
+            <div
+              style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);padding:6px 12px 2px">
+              ClickHouse</div>
+            <button class="guide-mod-btn active" onclick="showGuideModule(1,this)" id="gbtn-1"><span
+                class="guide-mod-n">01</span>
+              <div class="guide-mod-meta"><strong>Why ClickHouse?</strong><span>Columnar · OLAP · Architecture</span>
+              </div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(2,this)" id="gbtn-2"><span
+                class="guide-mod-n">02</span>
+              <div class="guide-mod-meta"><strong>MergeTree: The Core</strong><span>Parts · Merges · ORDER BY</span>
+              </div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(3,this)" id="gbtn-3"><span
+                class="guide-mod-n">03</span>
+              <div class="guide-mod-meta"><strong>Engine Variants</strong><span>Summing · Replacing · Collapsing</span>
+              </div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(4,this)" id="gbtn-4"><span
+                class="guide-mod-n">04</span>
+              <div class="guide-mod-meta"><strong>Materialized Views</strong><span>MVs · HyperLogLog ·
+                  -State/-Merge</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(5,this)" id="gbtn-5"><span
+                class="guide-mod-n">05</span>
+              <div class="guide-mod-meta"><strong>Logging &amp; TTL</strong><span>Auto-expiry · LowCardinality ·
+                  Search</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(6,this)" id="gbtn-6"><span
+                class="guide-mod-n">06</span>
+              <div class="guide-mod-meta"><strong>Cost &amp; Aggregations</strong><span>SummingMT · Budget alerts</span>
+              </div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(7,this)" id="gbtn-7"><span
+                class="guide-mod-n">07</span>
+              <div class="guide-mod-meta"><strong>Cluster &amp; Replication</strong><span>Sharding · Distributed ·
+                  Keeper</span></div>
+            </button>
+            <div
+              style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--accent2);padding:10px 12px 2px">
+              🤖 AI Layer</div>
+            <button class="guide-mod-btn" onclick="showGuideModule(8,this)" id="gbtn-8"><span
+                class="guide-mod-n">08</span>
+              <div class="guide-mod-meta"><strong>Text-to-SQL (J1)</strong><span>Schema injection ·
+                  Self-correction</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(9,this)" id="gbtn-9"><span
+                class="guide-mod-n">09</span>
+              <div class="guide-mod-meta"><strong>Insights Agent (J2)</strong><span>Agentic loop · Structured
+                  JSON</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(10,this)" id="gbtn-10"><span
+                class="guide-mod-n">10</span>
+              <div class="guide-mod-meta"><strong>RAG Search (J3)</strong><span>Embeddings · cosineDistance</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(11,this)" id="gbtn-11"><span
+                class="guide-mod-n">11</span>
+              <div class="guide-mod-meta"><strong>MCP Server (J4)</strong><span>Tools · Claude Desktop</span></div>
+            </button>
+          </div>
+        </aside>
+
+        <div class="guide-main">
+
+          <!-- MOD 1 -->
+          <div class="guide-lesson" id="glesson-1">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 01 · ClickHouse</div>
+              <h2 class="guide-lesson-title">Why ClickHouse?</h2>
+              <p class="guide-lesson-desc">Understand what makes ClickHouse fundamentally different from traditional
+                databases — and when to reach for it.</p>
+              <div class="guide-tags"><span class="tag">Columnar Storage</span><span class="tag">OLAP vs
+                  OLTP</span><span class="tag">Vectorized Execution</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>Traditional databases store rows together on disk.
+              ClickHouse stores <strong>columns</strong> together. <code>SELECT AVG(revenue)</code> on a 100-column
+              table reads only the <code>revenue</code> column — not the other 99. This gives 10–100x analytics
+              speedups.
+            </div>
+            <h3 class="guide-h3">Row vs Columnar Storage</h3>
+            <div class="guide-compare">
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--bad">Row Store (Postgres, MySQL)</div>
+                <div class="guide-code-sm">Disk: [id|name|revenue|ts][id|name|...]...
+
+                  SELECT AVG(revenue) FROM events;
+                  → Must read ALL columns every row
+                  → I/O: 100% of table → Slow</div>
+              </div>
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--good">Columnar (ClickHouse)</div>
+                <div class="guide-code-sm">Disk: [id][id]... [name][name]... [revenue]...
+
+                  SELECT AVG(revenue) FROM events;
+                  → Reads ONLY the revenue column
+                  → I/O: 1% of table → 100x faster</div>
+              </div>
+            </div>
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">📊 When to Use ClickHouse</div>
+              <div class="guide-two-col">
+                <div>
+                  <div class="guide-check-item">✅ Analytics (aggregations, GROUP BY)</div>
+                  <div class="guide-check-item">✅ Time-series (logs, metrics, events)</div>
+                  <div class="guide-check-item">✅ Billions of rows, read-heavy</div>
+                </div>
+                <div>
+                  <div class="guide-check-item guide-x">❌ Row-level updates (use Postgres)</div>
+                  <div class="guide-check-item guide-x">❌ Complex transactions</div>
+                  <div class="guide-check-item guide-x">❌ Small data under 1M rows</div>
+                </div>
+              </div>
+            </div>
+            <div class="guide-code-block">-- Check actual compression ratio on your data:
+              SELECT
+              formatReadableSize(sum(bytes)) AS disk_size,
+              formatReadableSize(sum(data_uncompressed_bytes)) AS raw_size,
+              round(sum(data_uncompressed_bytes)/sum(bytes),1) AS compression_ratio
+              FROM system.parts WHERE database = 'demo' AND active;</div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('home')">→ Explore Introduction
+                tab</button><button class="btn" onclick="showGuideModule(2,document.getElementById('gbtn-2'))">Next:
+                MergeTree →</button></div>
+          </div>
+
+          <!-- MOD 2 -->
+          <div class="guide-lesson" id="glesson-2" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 02 · ClickHouse</div>
+              <h2 class="guide-lesson-title">MergeTree: The Foundation</h2>
+              <p class="guide-lesson-desc">Every ClickHouse engine is built on MergeTree. Understanding how it stores
+                and merges data is the single most important concept.</p>
+              <div class="guide-tags"><span class="tag">Parts</span><span class="tag">Merges</span><span
+                  class="tag">ORDER BY</span><span class="tag">Sparse Index</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>ClickHouse never updates rows in-place. Every INSERT
+              creates a new <strong>"part"</strong> (folder of column files). Background <strong>merge jobs</strong>
+              combine small parts into larger sorted ones. Writes are always sequential appends — fast for both INSERT
+              and SELECT.
+            </div>
+            <h3 class="guide-h3">The Parts Lifecycle</h3>
+            <div class="guide-code-block">/data/demo/telemetry_events/
+              20240101_1_1_0/ ← part from INSERT #1 (sorted by ORDER BY)
+              20240101_2_2_0/ ← part from INSERT #2
+              20240101_1_3_1/ ← merged (fully sorted, old parts deleted)
+
+              -- Each part has one file per column:
+              timestamp.bin service.bin primary.idx (1 entry per 8192 rows)</div>
+            <div class="guide-callout guide-callout--warn">
+              <div class="guide-callout-label">⚠️ Most Important Schema Decision</div><code>ORDER BY</code> is NOT a
+              primary key — it is the <strong>physical sort order on disk</strong>. Queries filtering on ORDER BY
+              columns skip most data using the sparse index. Queries on other columns scan everything.
+            </div>
+            <h3 class="guide-h3">Choosing ORDER BY</h3>
+            <div class="guide-compare">
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--bad">Wrong ORDER BY</div>
+                <div class="guide-code-sm">ORDER BY (id) -- random IDs
+                  WHERE service='api-gateway'
+                  → Full table scan every time</div>
+              </div>
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--good">Right ORDER BY</div>
+                <div class="guide-code-sm">ORDER BY (service, timestamp)
+                  WHERE service='api-gateway'
+                  → Sparse index skip → fast!</div>
+              </div>
+            </div>
+            <div class="guide-code-block">CREATE TABLE app_logs (
+              timestamp DateTime,
+              service LowCardinality(String),
+              level LowCardinality(String),
+              message String
+              ) ENGINE = MergeTree()
+              ORDER BY (service, level, timestamp) -- ← most-filtered columns first
+              PARTITION BY toYYYYMM(timestamp) -- ← monthly lifecycle
+              TTL timestamp + INTERVAL 90 DAY; -- ← auto-delete after 90 days</div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('engines')">→ Try the Engines
+                tab</button><button class="btn" onclick="showGuideModule(3,document.getElementById('gbtn-3'))">Next:
+                Engine Variants →</button></div>
+          </div>
+
+          <!-- MOD 3 -->
+          <div class="guide-lesson" id="glesson-3" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 03 · ClickHouse</div>
+              <h2 class="guide-lesson-title">Engine Variants</h2>
+              <p class="guide-lesson-desc">All ClickHouse engines inherit from MergeTree and differ only in what happens
+                <em>during background merges</em>.</p>
+              <div class="guide-tags"><span class="tag">SummingMergeTree</span><span
+                  class="tag">ReplacingMergeTree</span><span class="tag">CollapsingMergeTree</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 The Pattern</div>Every variant adds one behavior: <em>"when merging
+                rows with the same ORDER BY key, do X."</em> Everything else is identical to MergeTree.
+            </div>
+            <h3 class="guide-h3">SummingMergeTree — Auto-sum counters</h3>
+            <div class="guide-code-block">ENGINE = SummingMergeTree((cost_usd, api_calls))
+              ORDER BY (team, service, toDate(timestamp))
+              -- Inserts: (platform, api, 0.05, 100) + (platform, api, 0.08, 80)
+              -- After merge: (platform, api, 0.13, 180) ← auto-summed!
+              -- Always query with sum() for correctness:
+              SELECT service, sum(cost_usd) AS total FROM cost_usage GROUP BY service;</div>
+            <h3 class="guide-h3">ReplacingMergeTree — Upserts</h3>
+            <div class="guide-code-block">ENGINE = ReplacingMergeTree(version) -- higher version wins
+              ORDER BY (date, service, error_msg)
+              -- Re-insert with higher version = upsert
+              INSERT INTO error_summary VALUES (today(), 'api', 'timeout', 42, now64());
+              SELECT * FROM error_summary FINAL; -- FINAL forces dedup now</div>
+            <h3 class="guide-h3">CollapsingMergeTree — Corrections with sign</h3>
+            <div class="guide-code-block">ENGINE = CollapsingMergeTree(sign) -- +1=insert, -1=cancel
+              -- Correct a budget: cancel old row, insert new one
+              INSERT INTO budget_limits VALUES ('2024-01-01', 'platform', 5000.0, -1), -- cancel
+              ('2024-01-01', 'platform', 7500.0, +1); -- new
+              SELECT team, sum(budget_usd * sign) AS net FROM budget_limits GROUP BY team;</div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('engines')">→ Run all engine
+                demos</button><button class="btn" onclick="showGuideModule(4,document.getElementById('gbtn-4'))">Next:
+                Materialized Views →</button></div>
+          </div>
+
+          <!-- MOD 4 -->
+          <div class="guide-lesson" id="glesson-4" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 04 · ClickHouse</div>
+              <h2 class="guide-lesson-title">Materialized Views &amp; Approximations</h2>
+              <p class="guide-lesson-desc">Pre-compute results at insert time so dashboards query in milliseconds.</p>
+              <div class="guide-tags"><span class="tag">Materialized Views</span><span
+                  class="tag">HyperLogLog</span><span class="tag">-State/-Merge</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>A <strong>Materialized View</strong> is like a trigger
+              — every INSERT into the source table auto-runs a SELECT and inserts the result into a target table. Target
+              is usually AggregatingMergeTree storing <em>partial states</em>.
+            </div>
+            <div class="guide-code-block">-- Target: partial aggregate states
+              CREATE TABLE telemetry_hourly_agg (
+              hour DateTime, service LowCardinality(String),
+              event_count AggregateFunction(count),
+              unique_users AggregateFunction(uniq, String)
+              ) ENGINE = AggregatingMergeTree() ORDER BY (service, hour);
+
+              -- MV fires on every INSERT into telemetry_events:
+              CREATE MATERIALIZED VIEW mv_hourly TO telemetry_hourly_agg AS
+              SELECT toStartOfHour(timestamp) AS hour, service,
+              countState() AS event_count, uniqState(user_id) AS unique_users
+              FROM telemetry_events GROUP BY hour, service;
+
+              -- Query with -Merge to combine states:
+              SELECT hour, countMerge(event_count), uniqMerge(unique_users)
+              FROM telemetry_hourly_agg GROUP BY hour ORDER BY hour DESC;</div>
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">📐 HyperLogLog: COUNT DISTINCT at Scale</div><code>uniq(user_id)</code>
+              uses HyperLogLog — estimates distinct values in <strong>constant 2KB memory</strong>, regardless of
+              cardinality. &lt;1% error. Use <code>uniqExact()</code> only when exactness is required
+              (billing/compliance).
+            </div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('telemetry')">→ See Telemetry
+                data</button><button class="btn" onclick="showGuideModule(5,document.getElementById('gbtn-5'))">Next:
+                Logging &amp; TTL →</button></div>
+          </div>
+
+          <!-- MOD 5 -->
+          <div class="guide-lesson" id="glesson-5" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 05 · ClickHouse</div>
+              <h2 class="guide-lesson-title">Structured Logging &amp; TTL</h2>
+              <p class="guide-lesson-desc">ClickHouse as a log store: auto-expiring data, instant aggregations,
+                sub-second text search.</p>
+              <div class="guide-tags"><span class="tag">TTL</span><span class="tag">LowCardinality</span><span
+                  class="tag">LIKE Search</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div><strong>TTL</strong> automatically deletes or moves old
+              rows based on a time expression. Runs as a background operation during merges — no cron jobs, no manual
+              cleanup.
+            </div>
+            <div class="guide-code-block">CREATE TABLE app_logs (
+              timestamp DateTime,
+              level LowCardinality(String), -- ← 10x compression vs plain String
+              service LowCardinality(String),
+              message String
+              ) ENGINE = MergeTree()
+              ORDER BY (service, level, timestamp)
+              TTL timestamp + INTERVAL 90 DAY DELETE; -- auto-delete after 90d
+
+              -- Error rate per service (sub-second on millions of rows):
+              SELECT service,
+              round(countIf(level='ERROR')/count()*100,2) AS error_pct
+              FROM app_logs WHERE timestamp >= now() - INTERVAL 24 HOUR
+              GROUP BY service ORDER BY error_pct DESC;</div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('logging')">→ Explore live
+                logs</button><button class="btn" onclick="showGuideModule(6,document.getElementById('gbtn-6'))">Next:
+                Cost Tracking →</button></div>
+          </div>
+
+          <!-- MOD 6 -->
+          <div class="guide-lesson" id="glesson-6" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 06 · ClickHouse</div>
+              <h2 class="guide-lesson-title">Cost Tracking &amp; Aggregations</h2>
+              <p class="guide-lesson-desc">SummingMergeTree self-maintains totals; CollapsingMergeTree handles
+                corrections without mutations.</p>
+              <div class="guide-tags"><span class="tag">SummingMergeTree</span><span
+                  class="tag">CollapsingMergeTree</span><span class="tag">Budget Alerts</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div><strong>SummingMergeTree</strong> is zero-cost
+              aggregation. Every merge auto-sums your numeric columns. No ETL job, no cron, no scheduled aggregation —
+              the DB maintains totals itself.
+            </div>
+            <div class="guide-code-block">-- Budget alert: which teams exceeded 80% of budget?
+              SELECT cu.team, sum(cu.cost_usd) AS spend,
+              sum(bl.budget_usd * bl.sign) AS budget,
+              round(100.0 * sum(cu.cost_usd) / sum(bl.budget_usd * bl.sign), 1) AS used_pct
+              FROM cost_usage cu
+              JOIN budget_limits bl ON cu.team = bl.team
+              WHERE cu.timestamp >= today()
+              GROUP BY cu.team HAVING spend > budget * 0.8
+              ORDER BY used_pct DESC;</div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('costs')">→ See live cost
+                data</button><button class="btn" onclick="showGuideModule(7,document.getElementById('gbtn-7'))">Next:
+                Cluster →</button></div>
+          </div>
+
+          <!-- MOD 7 -->
+          <div class="guide-lesson" id="glesson-7" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 07 · ClickHouse</div>
+              <h2 class="guide-lesson-title">Cluster &amp; Replication</h2>
+              <p class="guide-lesson-desc">Scale out with sharding, stay up with replication — understand the
+                difference.</p>
+              <div class="guide-tags"><span class="tag">Distributed Table</span><span class="tag">Sharding</span><span
+                  class="tag">ReplicatedMergeTree</span><span class="tag">ClickHouse Keeper</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Two Different Concepts</div><strong>Sharding</strong> = split
+              <em>different</em> data across nodes (scale). <strong>Replication</strong> = copy the <em>same</em> data
+              (availability). Production = 2 shards × 2 replicas = 4 nodes.
+            </div>
+            <div class="guide-code-block">-- Distributed table: virtual, fans out to shards
+              ENGINE = Distributed(
+              demo_cluster, -- cluster name
+              default, -- database
+              events_local, -- local table on each shard
+              murmurHash3_32(user_id) -- sharding key (deterministic routing)
+              );
+              -- INSERT → Distributed → routes to correct shard
+              -- SELECT → Distributed → parallel scans all shards, merges results
+
+              -- Replication: same ZK path, different {replica} macro
+              ENGINE = ReplicatedMergeTree(
+              '/clickhouse/tables/ha/events', -- shared ZK path
+              '{replica}' -- expands per-node: replica-1, replica-2
+              );
+              -- Write to node1 → Keeper logs it → node2 fetches and applies automatically</div>
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">🏁 ClickHouse Fundamentals Complete!</div>You now understand columnar
+              storage → MergeTree → engine variants → MVs → TTL → sharding + replication. Now let’s add the AI layer on
+              top.
+            </div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('cluster')">→ See live cluster
+                demo</button><button class="btn" onclick="showGuideModule(8,document.getElementById('gbtn-8'))">Next:
+                Text-to-SQL →</button></div>
+          </div>
+
+          <!-- MOD 8: Text-to-SQL -->
+          <div class="guide-lesson" id="glesson-8" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 08 · AI Layer (J1)</div>
+              <h2 class="guide-lesson-title">Text-to-SQL</h2>
+              <p class="guide-lesson-desc">Let users ask questions in plain English and get answers from your ClickHouse
+                database — no SQL required. See how schema injection and self-correction make this reliable.</p>
+              <div class="guide-tags"><span class="tag">Schema Injection</span><span
+                  class="tag">Self-Correction</span><span class="tag">Few-Shot Prompting</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>LLMs don’t know your tables. You inject the schema into
+              the prompt. The LLM generates SQL. If it fails, you feed the error back so it can self-correct. This is
+              the same pattern used by GitHub Copilot and Claude.
+            </div>
+            <h3 class="guide-h3">The Pipeline (5 steps)</h3>
+            <div class="guide-code-block">1. USER: "Which service has the most errors today?"
+
+              2. SCHEMA INJECTION: inject table/column definitions into prompt
+              so the LLM knows your exact schema (no hallucinated columns)
+
+              3. SQL GENERATION: LLM outputs:
+              SELECT service, countIf(level='ERROR') AS errors
+              FROM demo.app_logs
+              WHERE timestamp >= today()
+              GROUP BY service ORDER BY errors DESC LIMIT 5
+
+              4. EXECUTE on ClickHouse → if it fails, feed error back:
+              "That failed: Unknown column 'error_count'. Fix using only the schema."
+              LLM corrects the SQL (retry up to 3x)
+
+              5. SUMMARIZE: LLM turns rows into: "The api-gateway service had
+              the most errors today (1,247), followed by auth-service (892)"</div>
+            <div class="guide-callout guide-callout--warn">
+              <div class="guide-callout-label">⚠️ Why Schema Accuracy Matters</div>If your schema says
+              <code>error_count</code> but the real column is <code>error_msg</code>, the LLM will use the wrong name
+              and the query will fail. Always copy column names directly from <code>system.columns</code>.
+            </div>
+            <div class="guide-code-block">-- Get exact schema to paste into your LLM prompt:
+              SELECT name, type, comment
+              FROM system.columns
+              WHERE database = 'demo' AND table = 'app_logs'
+              ORDER BY position;</div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('ai')">→ Try the Text-to-SQL
+                chatbot</button><button class="btn" onclick="showGuideModule(9,document.getElementById('gbtn-9'))">Next:
+                Insights Agent →</button></div>
+          </div>
+
+          <!-- MOD 9: Insights Agent -->
+          <div class="guide-lesson" id="glesson-9" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 09 · AI Layer (J2)</div>
+              <h2 class="guide-lesson-title">Insights Agent</h2>
+              <p class="guide-lesson-desc">Instead of waiting for users to ask questions, the agent proactively scans
+                your data, finds anomalies, and surfaces actionable insights.</p>
+              <div class="guide-tags"><span class="tag">Agentic Loop</span><span class="tag">Tool Calls</span><span
+                  class="tag">Structured JSON</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 What’s an Agent?</div>An agent is a loop: <strong>Observe</strong>
+              (run SQL queries to gather data) → <strong>Think</strong> (what does this mean?) → <strong>Act</strong>
+              (return insights or call more tools). Our agent runs 3 diagnostic queries then asks the LLM to find
+              patterns.
+            </div>
+            <div class="guide-code-block">// Step 1: Agent gathers real data (tool calls)
+              const telemetry = await query(`
+              SELECT service, quantile(0.95)(duration_ms) AS p95_ms,
+              countIf(event_type='error')/count() AS error_rate
+              FROM demo.telemetry_events
+              WHERE timestamp >= now() - INTERVAL 24 HOUR
+              GROUP BY service
+              `);
+              const logs = await query(`SELECT service, round(countIf(level='ERROR')/count()*100,2) AS error_pct ...`);
+              const costs = await query(`SELECT service, sum(cost_usd) AS daily_spend ...`);
+
+              // Step 2: Send ALL data to LLM, ask for structured JSON
+              const insights = await askLLM(`
+              Analyze this data: ${JSON.stringify({ telemetry, logs, costs })}
+              Return a JSON array: [{severity, title, detail, recommendation}]
+              Find the 3-5 most important issues.
+              `);
+
+              // Step 3: Parse and render cards
+              // [{severity:"critical", title:"High P95 on data-pipeline",
+              // detail:"2882ms is 2x the average", recommendation:"Check slow queries"}]</div>
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">📌 Key: Structured Output</div>By telling the LLM to return JSON with a
+              specific schema, you get machine-readable results you can render as cards, alerts, or dashboards. Extract
+              with: <code>JSON.parse(response.match(/\[\s\S\*\]/)[0])</code>
+            </div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('ai')">→ Run the Insights
+                Agent</button><button class="btn" onclick="showGuideModule(10,document.getElementById('gbtn-10'))">Next:
+                RAG Search →</button></div>
+          </div>
+
+          <!-- MOD 10: RAG -->
+          <div class="guide-lesson" id="glesson-10" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 10 · AI Layer (J3)</div>
+              <h2 class="guide-lesson-title">RAG with ClickHouse as Vector Store</h2>
+              <p class="guide-lesson-desc">Teach the LLM about your internal docs, runbooks, and architecture — using
+                ClickHouse as the vector database. No Pinecone needed.</p>
+              <div class="guide-tags"><span class="tag">Embeddings</span><span class="tag">cosineDistance()</span><span
+                  class="tag">Array(Float32)</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>Embedding models convert text into a list of 768
+              numbers (a vector). Similar texts have similar vectors. Store these in ClickHouse as
+              <code>Array(Float32)</code> and find similar documents using <code>cosineDistance()</code>.
+            </div>
+            <h3 class="guide-h3">INDEX Phase (run once per document)</h3>
+            <div class="guide-code-block">// 1. Chunk the text (400 chars, 50 char overlap)
+              // 2. Embed each chunk via Ollama nomic-embed-text model
+              const embedding = await fetch('http://localhost:11434/api/embeddings', {
+              method: 'POST',
+              body: JSON.stringify({ model: 'nomic-embed-text', prompt: chunk })
+              }).then(r => r.json()).then(d => d.embedding); // → number[768]
+
+              // 3. Store in ClickHouse
+              CREATE TABLE demo.knowledge_embeddings (
+              source LowCardinality(String),
+              category LowCardinality(String),
+              content String,
+              embedding Array(Float32) -- ← 768 floats stored here
+              ) ENGINE = MergeTree() ORDER BY (source, category);
+
+              INSERT INTO knowledge_embeddings VALUES ('my-runbook', 'incidents', text, [0.23, -0.18, ...]);</div>
+            <h3 class="guide-h3">QUERY Phase (every user question)</h3>
+            <div class="guide-code-block">// 1. Embed the user question
+              const qVector = await embed("What causes payment service errors?");
+
+              // 2. Find the 5 most similar chunks in ClickHouse
+              SELECT source, content,
+              cosineDistance(embedding, [${qVector.join(',')}]) AS distance
+              FROM demo.knowledge_embeddings
+              ORDER BY distance ASC -- 0 = identical, 2 = opposite
+              LIMIT 5;
+
+              // 3. Include retrieved chunks in the LLM prompt
+              // "Answer using ONLY this context: [chunks...]. Question: ..."
+              // → LLM answers from your docs, cites sources, doesn't hallucinate</div>
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">📦 Why ClickHouse Instead of Pinecone?</div>Pinecone is a separate paid
+              service. ClickHouse can store your vectors in the same DB as your telemetry/logs, enabling
+              <code>JOIN</code>s between your knowledge base and live operational data. Cost: free (you’re already
+              running ClickHouse).
+            </div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('ai')">→ Try the RAG
+                search</button><button class="btn"
+                onclick="showGuideModule(11,document.getElementById('gbtn-11'))">Next: MCP Server →</button></div>
+          </div>
+
+          <!-- MOD 11: MCP -->
+          <div class="guide-lesson" id="glesson-11" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 11 · AI Layer (J4)</div>
+              <h2 class="guide-lesson-title">MCP Server</h2>
+              <p class="guide-lesson-desc">Let Claude Desktop or Cursor query your live ClickHouse data directly — by
+                building an MCP server that exposes your database as AI tools.</p>
+              <div class="guide-tags"><span class="tag">MCP Protocol</span><span class="tag">Tool Definition</span><span
+                  class="tag">Claude Desktop</span><span class="tag">STDIO Transport</span></div>
+            </div>
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>MCP (Model Context Protocol) lets AI clients call
+              functions you define. You describe a tool — its name, what it does, and what inputs it takes. The AI reads
+              this description and decides when to call it.
+            </div>
+            <div class="guide-code-block">// A tool definition has 3 things:
+              {
+              name: 'get_top_errors',
+
+              // The AI reads this to decide WHEN to call the tool:
+              description: 'Get most frequent error messages in the last N hours.',
+
+              inputSchema: {
+              type: 'object',
+              properties: {
+              hours: { type: 'number', description: 'Hours to look back (default: 24)' },
+              limit: { type: 'number', description: 'Max results (default: 10)' }
+              }
+              }
+              }
+
+              // The handler runs the SQL and returns results:
+              case 'get_top_errors': {
+              const rows = await query(`
+              SELECT service, message, count() AS hits
+              FROM demo.app_logs
+              WHERE level = 'ERROR' AND timestamp >= now() - INTERVAL ${args.hours ?? 24} HOUR
+              GROUP BY service, message ORDER BY hits DESC LIMIT ${args.limit ?? 10}
+              `);
+              return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
+              }</div>
+            <h3 class="guide-h3">Connect to Claude Desktop</h3>
+            <div class="guide-code-block">// ~/Library/Application Support/Claude/claude_desktop_config.json
+              {
+              "mcpServers": {
+              "clickhouse": {
+              "command": "node",
+              "args": ["/path/to/backend/mcp-server.js"],
+              "env": { "CLICKHOUSE_HOST": "localhost", "CLICKHOUSE_PORT": "8123" }
+              }
+              }
+              }
+              // Restart Claude → ask: "Show me the top errors from the last hour"
+              // Claude calls get_top_errors({hours:1}) → real ClickHouse data in response!
+
+              // ⚠️ GOTCHA: Never use console.log in MCP servers!
+              // stdout is reserved for JSON-RPC. Use process.stderr.write() instead.</div>
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">🏆 You’ve completed the Full Stack Guide!</div>You now know: ClickHouse
+              columnar architecture → MergeTree engines → MVs &amp; TTL → clustering → Text-to-SQL → AI agents → RAG →
+              MCP. You have the full picture of building production AI systems on top of ClickHouse.
+            </div>
+            <div class="guide-next-row"><button class="btn btn-primary" onclick="goToTab('ai')">→ Explore the AI
+                Assistant</button><button class="btn btn-primary" onclick="goToTab('query')">→ Try SQL
+                Playground</button></div>
+          </div>
+
+        </div><!-- guide-main -->
+      </div><!-- guide-layout -->
     </section>
 
   </main>
