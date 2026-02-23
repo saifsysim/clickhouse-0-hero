@@ -32,6 +32,17 @@
     </div>
 
     <nav class="sidebar-nav">
+      <div class="nav-section-label">Learn</div>
+      <button class="nav-item guide-nav-item" data-tab="guide" onclick="switchTab('guide',this)" id="guide-nav-btn">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" stroke="currentColor" stroke-width="2"
+            stroke-linejoin="round" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" stroke="currentColor" stroke-width="2"
+            stroke-linejoin="round" />
+        </svg>
+        Learning Guide
+      </button>
+
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
         <svg viewBox="0 0 24 24" fill="none">
@@ -283,7 +294,8 @@
           </div>
           <h3>AggregatingMergeTree</h3>
           <p class="engine-desc">Stores <strong>partial aggregate states</strong> (e.g. HyperLogLog for
-            <code>uniq</code>). Used with <em>Materialized Views</em> for blazing-fast pre-computed rollups.</p>
+            <code>uniq</code>). Used with <em>Materialized Views</em> for blazing-fast pre-computed rollups.
+          </p>
           <div class="code-block">
             -- Backing table for the hourly rollup MV
             CREATE TABLE telemetry_hourly_agg (
@@ -400,7 +412,8 @@
       <div class="page-header">
         <h1>Telemetry Dashboard</h1>
         <p class="page-subtitle">Real-time event analytics powered by ClickHouse's <strong>MergeTree</strong> engine and
-          <strong>Materialized Views</strong>. Simulating 30k+ events from 7 microservices.</p>
+          <strong>Materialized Views</strong>. Simulating 30k+ events from 7 microservices.
+        </p>
       </div>
 
       <div class="kpi-row" id="telemetryKpis">
@@ -582,7 +595,8 @@
       <div class="page-header">
         <h1>Cost & Usage Analytics</h1>
         <p class="page-subtitle">Track API spend, token consumption, and per-team budgets. Powered by
-          <strong>SummingMergeTree</strong> — totals are maintained automatically during merges.</p>
+          <strong>SummingMergeTree</strong> — totals are maintained automatically during merges.
+        </p>
       </div>
 
       <div class="kpi-row" id="costKpis">
@@ -774,7 +788,8 @@
           <h3 style="margin-bottom:6px">🔀 Sharding Demo</h3>
           <p style="font-size:12.5px;color:var(--text2);margin-bottom:16px">8,000 rows were inserted via the
             <code>Distributed</code> table. ClickHouse routed each row to a shard using
-            <code>murmurHash3_32(user_id)</code>.</p>
+            <code>murmurHash3_32(user_id)</code>.
+          </p>
           <canvas id="shardDistChart" height="160"></canvas>
           <div class="section-title" style="margin-top:16px">Insert a test row →</div>
           <div class="form-row" style="flex-wrap:wrap">
@@ -807,7 +822,8 @@
           <h3 style="margin-bottom:6px">🔄 Replication Demo</h3>
           <p style="font-size:12.5px;color:var(--text2);margin-bottom:16px">Both nodes share the table
             <code>events_replicated</code> under <em>the same ZK path</em>. Write to node1, and node2 gets it
-            automatically via ClickHouse Keeper.</p>
+            automatically via ClickHouse Keeper.
+          </p>
 
           <!-- Row count per replica -->
           <div id="repl-row-counts" class="repl-counts-row">Loading…</div>
@@ -943,6 +959,619 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- ─── LEARNING GUIDE ─────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-guide">
+      <div class="guide-layout">
+
+        <!-- LEFT: module navigation -->
+        <aside class="guide-sidebar glass">
+          <div class="guide-sidebar-hd">
+            <div class="guide-ttl">📖 ClickHouse Guide</div>
+            <div class="guide-sub">7 modules · learn by doing</div>
+            <div class="guide-prog-wrap">
+              <div class="guide-prog-bar" id="guideProgBar" style="width:14.3%"></div>
+            </div>
+            <div class="guide-prog-lbl" id="guideProgLbl">Module 1 of 7</div>
+          </div>
+          <div class="guide-mod-list">
+            <button class="guide-mod-btn active" onclick="showGuideModule(1,this)" id="gbtn-1">
+              <span class="guide-mod-n">01</span>
+              <div class="guide-mod-meta"><strong>Why ClickHouse?</strong><span>Columnar · OLAP · Architecture</span>
+              </div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(2,this)" id="gbtn-2">
+              <span class="guide-mod-n">02</span>
+              <div class="guide-mod-meta"><strong>MergeTree: The Core</strong><span>Parts · Merges · ORDER BY</span>
+              </div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(3,this)" id="gbtn-3">
+              <span class="guide-mod-n">03</span>
+              <div class="guide-mod-meta"><strong>Engine Variants</strong><span>Summing · Aggregating · Replacing ·
+                  Collapsing</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(4,this)" id="gbtn-4">
+              <span class="guide-mod-n">04</span>
+              <div class="guide-mod-meta"><strong>Materialized Views</strong><span>MVs · HyperLogLog ·
+                  Combinators</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(5,this)" id="gbtn-5">
+              <span class="guide-mod-n">05</span>
+              <div class="guide-mod-meta"><strong>Logging &amp; TTL</strong><span>Auto-expiry · LowCardinality ·
+                  Search</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(6,this)" id="gbtn-6">
+              <span class="guide-mod-n">06</span>
+              <div class="guide-mod-meta"><strong>Cost &amp; Aggregations</strong><span>SummingMT · Budget alerts ·
+                  Sign</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(7,this)" id="gbtn-7">
+              <span class="guide-mod-n">07</span>
+              <div class="guide-mod-meta"><strong>Cluster &amp; Replication</strong><span>Sharding · Distributed ·
+                  Keeper</span></div>
+            </button>
+          </div>
+        </aside>
+
+        <!-- RIGHT: lesson content -->
+        <div class="guide-main">
+
+          <!-- ── MODULE 1: WHY CLICKHOUSE ── -->
+          <div class="guide-lesson" id="glesson-1">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 01</div>
+              <h2 class="guide-lesson-title">Why ClickHouse?</h2>
+              <p class="guide-lesson-desc">Understand what makes ClickHouse fundamentally different from traditional
+                databases — and when to reach for it.</p>
+              <div class="guide-tags">
+                <span class="tag">Columnar Storage</span>
+                <span class="tag">OLAP vs OLTP</span>
+                <span class="tag">Vectorized Execution</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>
+              Traditional databases store rows together on disk. ClickHouse stores <strong>columns</strong> together.
+              When you run <code>SELECT AVG(revenue)</code> on a 100-column table, ClickHouse reads only the
+              <code>revenue</code> column — not the other 99.
+            </div>
+
+            <h3 class="guide-h3">Row vs Columnar Storage</h3>
+            <div class="guide-compare">
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--bad">Row Store (Postgres, MySQL)</div>
+                <div class="guide-code-sm">Disk: [id|name|revenue|ts][id|name|revenue|ts]...
+
+                  SELECT AVG(revenue) FROM events;
+                  → Must read ALL columns for every row
+                  → I/O: 100% of the table
+                  → Slow on analytics workloads</div>
+              </div>
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--good">Columnar (ClickHouse)</div>
+                <div class="guide-code-sm">Disk: [id][id]... [name][name]... [revenue][revenue]...
+
+                  SELECT AVG(revenue) FROM events;
+                  → Reads ONLY the revenue column
+                  → I/O: 1% of the table
+                  → 100x faster on the same hardware</div>
+              </div>
+            </div>
+
+            <h3 class="guide-h3">Vectorized Execution</h3>
+            <p class="guide-p">Instead of processing one row at a time, ClickHouse processes a <strong>batch of 8,192
+                values</strong> per CPU instruction using SIMD. Think of it as doing math on an entire column at once
+              rather than looping through rows.</p>
+
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">📊 When to Use ClickHouse</div>
+              <div class="guide-two-col">
+                <div>
+                  <div class="guide-check-item">✅ Analytics queries (aggregations, GROUP BY)</div>
+                  <div class="guide-check-item">✅ Time-series data (logs, metrics, events)</div>
+                  <div class="guide-check-item">✅ Read-heavy workloads (dashboards, reports)</div>
+                  <div class="guide-check-item">✅ Billions of rows with fast scans</div>
+                </div>
+                <div>
+                  <div class="guide-check-item guide-x">❌ High-frequency point updates (use Postgres)</div>
+                  <div class="guide-check-item guide-x">❌ Complex transactions (use Postgres/MySQL)</div>
+                  <div class="guide-check-item guide-x">❌ Small data under 1M rows (any DB works)</div>
+                  <div class="guide-check-item guide-x">❌ JOIN-heavy OLTP workloads</div>
+                </div>
+              </div>
+            </div>
+
+            <h3 class="guide-h3">Compression — The Secret Weapon</h3>
+            <p class="guide-p">Columnar storage makes compression extremely effective. A column of
+              <code>LowCardinality(String)</code> with values like <em>frontend, api-gateway, auth-service</em>
+              compresses to nearly nothing — because the same strings repeat millions of times.</p>
+            <div class="guide-code-block">-- ClickHouse typically achieves 5-20x compression
+              -- Example: 100GB of raw logs → ~8GB on disk
+
+              SELECT
+              formatReadableSize(sum(bytes)) AS disk_size,
+              formatReadableSize(sum(data_uncompressed_bytes)) AS raw_size,
+              sum(data_uncompressed_bytes) / sum(bytes) AS ratio
+              FROM system.parts
+              WHERE database = 'demo' AND active;</div>
+
+            <div class="guide-next-row">
+              <button class="btn btn-primary" onclick="goToTab('home')">→ Explore the Introduction tab</button>
+              <button class="btn" onclick="showGuideModule(2, document.getElementById('gbtn-2'))">Next: MergeTree
+                →</button>
+            </div>
+          </div>
+
+          <!-- ── MODULE 2: MERGETREE ── -->
+          <div class="guide-lesson" id="glesson-2" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 02</div>
+              <h2 class="guide-lesson-title">MergeTree: The Foundation</h2>
+              <p class="guide-lesson-desc">Every ClickHouse engine you'll use is built on MergeTree. Understanding how
+                it stores and merges data is the single most important ClickHouse concept.</p>
+              <div class="guide-tags">
+                <span class="tag">Parts</span><span class="tag">Merges</span><span class="tag">ORDER BY</span><span
+                  class="tag">Sparse Index</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>
+              ClickHouse never updates rows in-place. Every INSERT creates a new <strong>"part"</strong> (a folder of
+              column files). Background <strong>merge jobs</strong> then combine small parts into larger, sorted ones.
+              This is why ClickHouse is fast at INSERTs AND queries — writes are always sequential appends.
+            </div>
+
+            <h3 class="guide-h3">The Parts Lifecycle</h3>
+            <div class="guide-code-block">-- After 3 INSERTs you have 3 parts:
+              /data/demo/telemetry_events/
+              20240101_1_1_0/ ← part from INSERT #1 (sorted by ORDER BY)
+              20240101_2_2_0/ ← part from INSERT #2
+              20240101_3_3_0/ ← part from INSERT #3
+
+              -- ClickHouse background thread merges them:
+              20240101_1_3_1/ ← merged part (all 3 → 1, fully sorted)
+              (old parts deleted after merge completes)
+
+              -- Each part contains one file per column:
+              timestamp.bin ← compressed timestamp values
+              service.bin ← compressed service values
+              primary.idx ← sparse primary index (1 entry per 8192 rows)</div>
+
+            <div class="guide-callout guide-callout--warn">
+              <div class="guide-callout-label">⚠️ The Most Important Schema Decision</div>
+              <code>ORDER BY</code> in ClickHouse is <strong>NOT</strong> a primary key — it is the <strong>physical
+                sort order on disk</strong>. This determines which queries run fast. A query that filters on your ORDER
+              BY columns skips most of the data using the sparse index. A query that filters on other columns scans
+              everything.
+            </div>
+
+            <h3 class="guide-h3">Choosing ORDER BY</h3>
+            <div class="guide-compare">
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--bad">Wrong ORDER BY</div>
+                <div class="guide-code-sm">ORDER BY (id) -- random IDs → bad
+
+                  -- "Show errors for api-gateway"
+                  WHERE service = 'api-gateway'
+                  → Must scan ALL rows because
+                  service is not the sort key
+                  → Full table scan every time</div>
+              </div>
+              <div class="guide-compare-side">
+                <div class="guide-compare-label guide-compare-label--good">Right ORDER BY</div>
+                <div class="guide-code-sm">ORDER BY (service, timestamp) -- ✓
+
+                  -- "Show errors for api-gateway"
+                  WHERE service = 'api-gateway'
+                  → Sparse index skips directly to
+                  api-gateway rows
+                  → Reads only relevant granules</div>
+              </div>
+            </div>
+
+            <h3 class="guide-h3">PARTITION BY — Data Lifecycle</h3>
+            <p class="guide-p"><code>PARTITION BY toYYYYMM(timestamp)</code> splits data into monthly folders. This lets
+              you drop an entire month with <code>ALTER TABLE DROP PARTITION '202401'</code> — instant, no scanning
+              needed.</p>
+            <div class="guide-code-block">CREATE TABLE app_logs (
+              timestamp DateTime,
+              service LowCardinality(String),
+              level LowCardinality(String),
+              message String
+              )
+              ENGINE = MergeTree()
+              ORDER BY (service, level, timestamp) -- ← most-filtered columns first
+              PARTITION BY toYYYYMM(timestamp) -- ← monthly partitions for lifecycle
+              TTL timestamp + INTERVAL 90 DAY; -- ← auto-delete after 90 days</div>
+
+            <div class="guide-next-row">
+              <button class="btn btn-primary" onclick="goToTab('engines')">→ Try the Engines tab</button>
+              <button class="btn" onclick="showGuideModule(3, document.getElementById('gbtn-3'))">Next: Engine Variants
+                →</button>
+            </div>
+          </div>
+
+          <!-- ── MODULE 3: ENGINE VARIANTS ── -->
+          <div class="guide-lesson" id="glesson-3" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 03</div>
+              <h2 class="guide-lesson-title">Engine Variants</h2>
+              <p class="guide-lesson-desc">All ClickHouse engines inherit from MergeTree and differ only in what happens
+                <em>during background merges</em>.</p>
+              <div class="guide-tags">
+                <span class="tag">SummingMergeTree</span><span class="tag">AggregatingMergeTree</span><span
+                  class="tag">ReplacingMergeTree</span><span class="tag">CollapsingMergeTree</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 The Pattern</div>
+              Every engine variant adds one behavior to the merge step: <em>"when two parts are being merged and two
+                rows share the same ORDER BY key, do X."</em> The rest is identical to MergeTree.
+            </div>
+
+            <h3 class="guide-h3">SummingMergeTree — Auto-sum counters</h3>
+            <p class="guide-p">During merge, rows with the same ORDER BY key are collapsed and their numeric columns are
+              <strong>summed</strong>. Perfect for counters and accumulators that you'll always query with GROUP BY
+              anyway.</p>
+            <div class="guide-code-block">-- cost_usage uses SummingMergeTree
+              ENGINE = SummingMergeTree((cost_usd, api_calls, tokens_used))
+              ORDER BY (team, service, toDate(timestamp))
+
+              -- Three raw inserts:
+              -- (platform, api-gateway, 0.05, 100)
+              -- (platform, api-gateway, 0.03, 80)
+              -- (platform, api-gateway, 0.08, 120)
+              -- After merge: (platform, api-gateway, 0.16, 300) ← auto-summed!
+
+              -- Query: always use sum() for correctness (parts may not all be merged yet)
+              SELECT service, sum(cost_usd) AS total_cost
+              FROM demo.cost_usage GROUP BY service ORDER BY total_cost DESC;</div>
+
+            <h3 class="guide-h3">ReplacingMergeTree — Upserts / Deduplication</h3>
+            <p class="guide-p">During merge, rows with the same ORDER BY key are collapsed to the <strong>latest
+                version</strong>. The version column (usually a timestamp or auto-increment) determines which row wins.
+            </p>
+            <div class="guide-code-block">-- error_summary uses ReplacingMergeTree
+              ENGINE = ReplacingMergeTree(version) -- higher version wins
+              ORDER BY (date, service, error_msg)
+
+              -- "Upsert" pattern: re-insert with a higher version number
+              INSERT INTO error_summary VALUES
+              (today(), 'api-gateway', 'timeout', 42, toUnixTimestamp(now()));
+
+              -- After merge, only the latest version survives
+              -- Note: FINAL forces dedup at query time (slower) if not yet merged
+              SELECT * FROM error_summary FINAL WHERE service = 'api-gateway';</div>
+
+            <h3 class="guide-h3">CollapsingMergeTree — Corrections with sign</h3>
+            <p class="guide-p">Uses a <strong>sign column</strong> (+1 or -1). During merge, +1 rows cancel out -1 rows
+              with the same ORDER BY key. This allows you to "delete" or "correct" a value by inserting a -1 row — no
+              mutations needed.</p>
+            <div class="guide-code-block">-- budget_limits uses CollapsingMergeTree
+              ENGINE = CollapsingMergeTree(sign)
+              ORDER BY (date, team)
+
+              -- Original budget:
+              INSERT INTO budget_limits VALUES ('2024-01-01', 'platform', 5000.0, +1);
+
+              -- Correct it (cancel old, insert new):
+              INSERT INTO budget_limits VALUES
+              ('2024-01-01', 'platform', 5000.0, -1), -- cancel old
+              ('2024-01-01', 'platform', 7500.0, +1); -- new value
+
+              -- Query the NET budget:
+              SELECT team, sum(budget_usd * sign) AS effective_budget
+              FROM budget_limits GROUP BY team HAVING effective_budget > 0;</div>
+
+            <div class="guide-next-row">
+              <button class="btn btn-primary" onclick="goToTab('engines')">→ Run all engine demos</button>
+              <button class="btn" onclick="showGuideModule(4, document.getElementById('gbtn-4'))">Next: Materialized
+                Views →</button>
+            </div>
+          </div>
+
+          <!-- ── MODULE 4: MATERIALIZED VIEWS ── -->
+          <div class="guide-lesson" id="glesson-4" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 04</div>
+              <h2 class="guide-lesson-title">Materialized Views &amp; Approximations</h2>
+              <p class="guide-lesson-desc">Pre-compute results at insert time so dashboards query in milliseconds — plus
+                learn how ClickHouse estimates <code>COUNT DISTINCT</code> in constant memory.</p>
+              <div class="guide-tags">
+                <span class="tag">Materialized Views</span><span class="tag">HyperLogLog</span><span
+                  class="tag">-State/-Merge Combinators</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>
+              A <strong>Materialized View (MV)</strong> in ClickHouse is like a trigger — every INSERT into the source
+              table automatically runs a SELECT and inserts the result into a target table. The target table is usually
+              an AggregatingMergeTree that stores <em>partial aggregate states</em> rather than final values.
+            </div>
+
+            <h3 class="guide-h3">Materialized View + AggregatingMergeTree</h3>
+            <div class="guide-code-block">-- Step 1: target table stores partial states (not final numbers)
+              CREATE TABLE telemetry_hourly_agg (
+              hour DateTime,
+              service LowCardinality(String),
+              event_count AggregateFunction(count), -- compressed partial HLL state
+              unique_users AggregateFunction(uniq, String) -- HyperLogLog sketch
+              ) ENGINE = AggregatingMergeTree()
+              ORDER BY (service, hour);
+
+              -- Step 2: MV fires on every INSERT into telemetry_events
+              CREATE MATERIALIZED VIEW mv_telemetry_hourly
+              TO telemetry_hourly_agg AS
+              SELECT
+              toStartOfHour(timestamp) AS hour,
+              service,
+              countState() AS event_count, -- ← -State suffix!
+              uniqState(user_id) AS unique_users
+              FROM telemetry_events
+              GROUP BY hour, service;
+
+              -- Step 3: query uses -Merge suffix to combine partial states
+              SELECT hour, service,
+              countMerge(event_count) AS events,
+              uniqMerge(unique_users) AS distinct_users
+              FROM telemetry_hourly_agg
+              GROUP BY hour, service
+              ORDER BY hour DESC;</div>
+
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">📐 The -State / -Merge Pattern</div>
+              Any aggregate function in ClickHouse has two combinators:
+              <ul class="guide-list">
+                <li><code>uniqState()</code> — stores a HyperLogLog sketch (compact binary blob) instead of the final
+                  count</li>
+                <li><code>uniqMerge()</code> — combines multiple sketches and returns the final estimated count</li>
+                <li>This lets you pre-aggregate at insert time and merge at query time</li>
+              </ul>
+            </div>
+
+            <h3 class="guide-h3">HyperLogLog: Counting Billions in Bytes</h3>
+            <p class="guide-p"><code>uniq()</code> uses HyperLogLog to count distinct values in <strong>constant
+                memory</strong> (~2KB per group), regardless of cardinality. Great for "unique users" at web scale. Need
+              exact? Use <code>uniqExact()</code> — but it's 100x more memory.</p>
+            <div class="guide-code-block">-- HLL approximation (fast, O(1) memory)
+              SELECT service, uniq(user_id) AS approx_users FROM telemetry_events GROUP BY service;
+
+              -- Exact count (slow, O(n) memory)
+              SELECT service, uniqExact(user_id) AS exact_users FROM telemetry_events GROUP BY service;
+
+              -- Practical rule: &lt;1% error from HLL is acceptable for analytics
+              -- Use uniqExact() only for billing/compliance where exactness matters</div>
+
+            <div class="guide-next-row">
+              <button class="btn btn-primary" onclick="goToTab('telemetry')">→ See Telemetry live data</button>
+              <button class="btn" onclick="showGuideModule(5, document.getElementById('gbtn-5'))">Next: Logging &amp;
+                TTL →</button>
+            </div>
+          </div>
+
+          <!-- ── MODULE 5: LOGGING & TTL ── -->
+          <div class="guide-lesson" id="glesson-5" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 05</div>
+              <h2 class="guide-lesson-title">Structured Logging &amp; TTL</h2>
+              <p class="guide-lesson-desc">ClickHouse is one of the best log stores available — auto-expiring hot logs,
+                instant aggregations, and sub-second text search.</p>
+              <div class="guide-tags">
+                <span class="tag">TTL</span><span class="tag">LowCardinality</span><span class="tag">LIKE
+                  Search</span><span class="tag">Log Lifecycle</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>
+              <strong>TTL (Time-To-Live)</strong> is a built-in ClickHouse feature that automatically deletes (or moves
+              to cold storage) old rows based on a time expression. No cron jobs, no manual cleanup — it runs as a
+              background operation during merges.
+            </div>
+
+            <h3 class="guide-h3">TTL Expression</h3>
+            <div class="guide-code-block">CREATE TABLE app_logs (
+              timestamp DateTime,
+              level LowCardinality(String), -- ← saves 50-90% space vs String
+              service LowCardinality(String),
+              message String
+              )
+              ENGINE = MergeTree()
+              ORDER BY (service, level, timestamp)
+              PARTITION BY toDate(timestamp)
+              TTL timestamp + INTERVAL 90 DAY -- ← delete rows older than 90 days
+              DELETE -- (default behaviour)
+              SETTINGS merge_with_ttl_timeout = 3600; -- check every hour
+
+              -- You can also MOVE to cheaper storage tiers:
+              TTL timestamp + INTERVAL 30 DAY TO DISK 'ssd',
+              timestamp + INTERVAL 90 DAY TO DISK 's3';</div>
+
+            <h3 class="guide-h3">LowCardinality — Automatic Dictionary Encoding</h3>
+            <p class="guide-p">When a String column has fewer than ~10,000 unique values (like log levels or service
+              names), wrap it in <code>LowCardinality()</code>. ClickHouse automatically stores it as an integer
+              dictionary — often <strong>10x less space and 2x faster queries</strong>.</p>
+            <div class="guide-code-block">-- Without LowCardinality: stores full string for every row
+              level String -- 'ERROR', 'ERROR', 'ERROR'... stored 1M times
+
+              -- With LowCardinality: dictionary encoding
+              level LowCardinality(String)
+              -- Dictionary: {0: 'DEBUG', 1: 'INFO', 2: 'WARN', 3: 'ERROR'}
+              -- Column: [3, 3, 1, 3, 2, 1, ...] ← just integers!
+
+              -- Works transparently — no query changes needed:
+              WHERE level = 'ERROR' -- still works exactly the same</div>
+
+            <h3 class="guide-h3">Log Search Patterns</h3>
+            <div class="guide-code-block">-- Fast: prefix match on the ORDER BY key
+              SELECT * FROM app_logs WHERE service = 'api-gateway' AND level = 'ERROR'
+              ORDER BY timestamp DESC LIMIT 100;
+
+              -- LIKE search (full-text, slightly slower — scans column values)
+              SELECT * FROM app_logs WHERE message LIKE '%timeout%'
+              AND timestamp >= now() - INTERVAL 1 HOUR;
+
+              -- Error rate by service (instant due to ORDER BY)
+              SELECT service,
+              countIf(level = 'ERROR') AS errors,
+              count() AS total,
+              round(100.0 * countIf(level='ERROR') / count(), 2) AS error_pct
+              FROM app_logs WHERE timestamp >= now() - INTERVAL 24 HOUR
+              GROUP BY service ORDER BY error_pct DESC;</div>
+
+            <div class="guide-next-row">
+              <button class="btn btn-primary" onclick="goToTab('logging')">→ Explore live logs</button>
+              <button class="btn" onclick="showGuideModule(6, document.getElementById('gbtn-6'))">Next: Cost &amp;
+                Aggregations →</button>
+            </div>
+          </div>
+
+          <!-- ── MODULE 6: COST & AGGREGATIONS ── -->
+          <div class="guide-lesson" id="glesson-6" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 06</div>
+              <h2 class="guide-lesson-title">Cost Tracking &amp; Aggregations</h2>
+              <p class="guide-lesson-desc">Build a self-maintaining cost dashboard: SummingMergeTree auto-aggregates
+                spend, while CollapsingMergeTree handles budget corrections without mutations.</p>
+              <div class="guide-tags">
+                <span class="tag">SummingMergeTree</span><span class="tag">CollapsingMergeTree</span><span
+                  class="tag">Budget Alerts</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Core Idea</div>
+              <strong>SummingMergeTree</strong> is a zero-cost aggregation layer. Every time ClickHouse merges parts, it
+              automatically sums your numeric columns for rows with the same ORDER BY key. No ETL job, no cron tab, no
+              scheduled aggregation — the DB maintains the totals itself.
+            </div>
+
+            <h3 class="guide-h3">SummingMergeTree: How Totals Stay Current</h3>
+            <div class="guide-code-block">-- cost_usage: appended continuously by services
+              ENGINE = SummingMergeTree((cost_usd, api_calls, tokens_used))
+              ORDER BY (team, service, toDate(timestamp))
+
+              -- 100 inserts happen during the day:
+              INSERT INTO cost_usage VALUES ('2024-01-15', 'api-gateway', 'platform', 0.0012, 12, 800);
+              INSERT INTO cost_usage VALUES ('2024-01-15', 'api-gateway', 'platform', 0.0008, 8, 500);
+              -- ... 98 more inserts ...
+
+              -- Background merge collapses them automatically:
+              -- Result: ('2024-01-15', 'api-gateway', 'platform', SUM(cost), SUM(calls), SUM(tokens))
+
+              -- Always query with sum() for correctness (some parts may not be merged yet):
+              SELECT team, service, sum(cost_usd) AS total_cost
+              FROM cost_usage GROUP BY team, service ORDER BY total_cost DESC;</div>
+
+            <h3 class="guide-h3">Budget Alerts with CollapsingMergeTree</h3>
+            <div class="guide-code-block">-- Check: which teams exceeded their daily budget?
+              SELECT cu.service, cu.team,
+              sum(cu.cost_usd) AS daily_spend,
+              -- CollapsingMergeTree net budget (sign=+1 adds, sign=-1 cancels)
+              sum(bl.budget_usd * bl.sign) AS budget,
+              round(100.0 * sum(cu.cost_usd) / sum(bl.budget_usd * bl.sign), 1) AS used_pct
+              FROM cost_usage cu
+              JOIN budget_limits bl ON cu.team = bl.team AND bl.date = toDate(cu.timestamp)
+              WHERE cu.timestamp >= today() AND bl.sign = 1
+              GROUP BY cu.service, cu.team
+              HAVING daily_spend > budget * 0.8 -- alert at 80%
+              ORDER BY used_pct DESC;</div>
+
+            <div class="guide-next-row">
+              <button class="btn btn-primary" onclick="goToTab('costs')">→ See live cost data</button>
+              <button class="btn" onclick="showGuideModule(7, document.getElementById('gbtn-7'))">Next: Cluster &amp;
+                Replication →</button>
+            </div>
+          </div>
+
+          <!-- ── MODULE 7: CLUSTER & REPLICATION ── -->
+          <div class="guide-lesson" id="glesson-7" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 07</div>
+              <h2 class="guide-lesson-title">Cluster &amp; Replication</h2>
+              <p class="guide-lesson-desc">Scale out horizontally with sharding, and achieve high availability with
+                replication — understand the difference and when you need each.</p>
+              <div class="guide-tags">
+                <span class="tag">Distributed Table</span><span class="tag">Sharding</span><span
+                  class="tag">ReplicatedMergeTree</span><span class="tag">ClickHouse Keeper</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 Two Different Concepts</div>
+              <strong>Sharding</strong> = split <em>different</em> data across nodes (for scale).
+              <strong>Replication</strong> = copy the <em>same</em> data across nodes (for availability). Production
+              clusters usually use both — 2 shards × 2 replicas = 4 nodes total.
+            </div>
+
+            <h3 class="guide-h3">Sharding: The Distributed Table</h3>
+            <p class="guide-p">A <code>Distributed</code> table is a <strong>virtual table</strong> — it contains no
+              data itself. INSERTs fan out to local tables on each shard; SELECTs fan out and merge. The sharding key
+              (usually a hash of a user ID) determines which shard each row goes to.</p>
+            <div class="guide-code-block">-- Local table on EACH shard node:
+              CREATE TABLE events_local ON CLUSTER demo_cluster (...)
+              ENGINE = ReplicatedMergeTree('/ch/tables/{shard}/events', '{replica}')
+              ORDER BY (user_id, timestamp);
+
+              -- Distributed table: virtual, one per cluster
+              CREATE TABLE events_dist ON CLUSTER demo_cluster (...)
+              ENGINE = Distributed(
+              demo_cluster, -- cluster name from config.xml
+              default, -- database
+              events_local, -- local table on each shard
+              murmurHash3_32(user_id) -- sharding key → deterministic routing
+              );
+
+              -- Write to distributed → auto-routes to correct shard:
+              INSERT INTO events_dist VALUES ('user-42', ...);
+              -- murmurHash3_32('user-42') % 2 = shard 1 → goes to clickhouse-node1
+
+              -- Read from distributed → fan-out, parallel scan, merge:
+              SELECT count(), service FROM events_dist GROUP BY service;</div>
+
+            <h3 class="guide-h3">Replication: ClickHouse Keeper</h3>
+            <p class="guide-p"><code>ReplicatedMergeTree</code> uses ClickHouse Keeper (a ZooKeeper-compatible service)
+              to track a shared INSERT log. When node1 inserts data, Keeper records the log entry — node2 reads it and
+              applies the same insert. This is asynchronous and happens within milliseconds.</p>
+            <div class="guide-code-block">-- Same ZK path, different replica macro → two replicas of same data
+              CREATE TABLE events_replicated (
+              timestamp DateTime, service String, user_id String
+              ) ENGINE = ReplicatedMergeTree(
+              '/clickhouse/tables/ha/events_replicated', -- shared ZK path
+              '{replica}' -- expands to 'replica-1' on node1, 'replica-2' on node2
+              )
+              ORDER BY (service, timestamp);
+
+              -- How Keeper coordinates it:
+              -- 1. INSERT arrives at replica-1 (node1)
+              -- 2. node1 writes part locally AND logs entry to Keeper
+              -- 3. node2 reads Keeper log → fetches the part from node1
+              -- 4. Both replicas now have identical data
+
+              -- Check replication status:
+              SELECT replica_name, is_leader, queue_size, inserts_in_queue
+              FROM system.replicas WHERE table = 'events_replicated';</div>
+
+            <div class="guide-callout guide-callout--info">
+              <div class="guide-callout-label">🎉 You've completed the ClickHouse guide!</div>
+              You now understand the full stack: columnar storage → MergeTree parts → engine variants → materialized
+              views → TTL → sharding + replication. The next step is to explore the live demos in each tab, then try
+              writing your own queries in the SQL Playground.
+            </div>
+
+            <div class="guide-next-row">
+              <button class="btn btn-primary" onclick="goToTab('cluster')">→ See the live cluster demo</button>
+              <button class="btn" onclick="goToTab('query')">→ Try the SQL Playground</button>
+            </div>
+          </div>
+
+        </div><!-- end guide-main -->
+      </div><!-- end guide-layout -->
     </section>
 
   </main>

@@ -19,7 +19,30 @@ function switchTab(tab, btn) {
     if (tab === 'costs') loadCosts();
     if (tab === 'cluster') loadCluster();
     if (tab === 'query') loadPlaygroundTables();
+    // Learning Guide – no data to load, just show
 }
+
+// Navigate to a tab from within the Learning Guide (without needing a button ref)
+function goToTab(tab) {
+    const btn = document.querySelector(`[data-tab="${tab}"]`);
+    switchTab(tab, btn);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Show a guide module, update progress bar + sidebar active state
+function showGuideModule(num, btn) {
+    const total = 7; // update this when adding AI modules in addAI branch
+    document.querySelectorAll('.guide-lesson').forEach(l => l.style.display = 'none');
+    document.querySelectorAll('.guide-mod-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`glesson-${num}`).style.display = '';
+    if (btn) btn.classList.add('active');
+    const pct = (num / total * 100).toFixed(1);
+    document.getElementById('guideProgBar').style.width = pct + '%';
+    document.getElementById('guideProgLbl').textContent = `Module ${num} of ${total}`;
+    // Smooth scroll to top of guide content
+    document.querySelector('.guide-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 async function checkHealth() {
