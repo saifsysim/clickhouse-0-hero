@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClickHouse Explorer – Interactive Demo</title>
+  <meta name="description"
+    content="Interactive ClickHouse demo showcasing MergeTree engines, telemetry dashboards, structured logging, and cost/usage analytics." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
+      <div>
+        <div class="logo-title">ClickHouse</div>
+        <div class="logo-sub">Explorer</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Overview</div>
+      <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="2" />
+          <polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" stroke-width="2" />
+        </svg>
+        Introduction
+      </button>
+      <button class="nav-item" data-tab="engines" onclick="switchTab('engines',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" />
+          <path
+            d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M12 2v2m0 18v-2m10-8h-2M4 12H2"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        DB Engines
+      </button>
+
+      <div class="nav-section-label">Use Cases</div>
+      <button class="nav-item" data-tab="telemetry" onclick="switchTab('telemetry',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Telemetry
+      </button>
+      <button class="nav-item" data-tab="logging" onclick="switchTab('logging',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" />
+          <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="2" />
+          <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" />
+          <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" />
+          <polyline points="10 9 9 9 8 9" stroke="currentColor" stroke-width="2" />
+        </svg>
+        Structured Logging
+      </button>
+      <button class="nav-item" data-tab="costs" onclick="switchTab('costs',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <line x1="12" y1="1" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Cost & Usage
+      </button>
+
+      <div class="nav-section-label">Playground</div>
+      <button class="nav-item" data-tab="cluster" onclick="switchTab('cluster',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="5" r="3" stroke="currentColor" stroke-width="2" />
+          <circle cx="5" cy="19" r="3" stroke="currentColor" stroke-width="2" />
+          <circle cx="19" cy="19" r="3" stroke="currentColor" stroke-width="2" />
+          <path d="M12 8v3m0 0-5 5m5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        Cluster & Replication
+      </button>
+      <button class="nav-item" data-tab="query" onclick="switchTab('query',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <polyline points="4 17 10 11 4 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <line x1="12" y1="19" x2="20" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        SQL Playground
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="connection-badge" id="connectionBadge">
+        <span class="badge-dot"></span>
+        <span id="connectionText">Connecting…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main-content">
+    <!-- ─── HOME ─────────────────────────────────────────────────────────── -->
+    <section class="tab-panel active" id="tab-home">
+      <div class="page-header">
+        <h1>Welcome to ClickHouse Explorer</h1>
+        <p class="page-subtitle">An interactive, hands-on introduction to ClickHouse — the blazing-fast columnar OLAP
+          database. Explore real data across three production use cases.</p>
+      </div>
+
+      <div class="intro-grid">
+        <div class="intro-card glass">
+          <div class="intro-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+          </div>
+          <h3>Blazing Fast</h3>
+          <p>ClickHouse processes billions of rows per second using vectorized query execution and columnar storage.</p>
+        </div>
+        <div class="intro-card glass">
+          <div class="intro-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                stroke="currentColor" stroke-width="2" />
+            </svg>
+          </div>
+          <h3>Rich Engine Family</h3>
+          <p>Six specialized table engines — each optimised for different workloads: time-series, aggregation,
+            deduplication, and more.</p>
+        </div>
+        <div class="intro-card glass">
+          <div class="intro-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+              <polyline points="22 4 12 14.01 9 11.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+          </div>
+          <h3>Production Ready</h3>
+          <p>Battle-tested by Cloudflare, Uber, and hundreds of enterprises processing petabytes of data.</p>
+        </div>
+      </div>
+
+      <div class="section-title">What You'll Learn</div>
+      <div class="learn-grid">
+        <div class="learn-item" onclick="switchTab('engines', document.querySelector('[data-tab=engines]'))">
+          <div class="learn-num">01</div>
+          <div>
+            <strong>Database Engines</strong>
+            <p>MergeTree, SummingMergeTree, AggregatingMergeTree, ReplacingMergeTree, CollapsingMergeTree</p>
+          </div>
+        </div>
+        <div class="learn-item" onclick="switchTab('telemetry', document.querySelector('[data-tab=telemetry]'))">
+          <div class="learn-num">02</div>
+          <div>
+            <strong>Telemetry Pipeline</strong>
+            <p>High-throughput event ingestion, real-time dashboards, funnels, and user analytics</p>
+          </div>
+        </div>
+        <div class="learn-item" onclick="switchTab('logging', document.querySelector('[data-tab=logging]'))">
+          <div class="learn-num">03</div>
+          <div>
+            <strong>Structured Logging</strong>
+            <p>Indexed log storage with TTL, full-text search, error rate tracking, and trace correlation</p>
+          </div>
+        </div>
+        <div class="learn-item" onclick="switchTab('costs', document.querySelector('[data-tab=costs]'))">
+          <div class="learn-num">04</div>
+          <div>
+            <strong>Cost & Usage Analytics</strong>
+            <p>API spend tracking, per-team budgets, anomaly alerts, and cost-per-call analysis</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">ClickHouse Architecture at a Glance</div>
+      <div class="arch-diagram glass">
+        <div class="arch-column">
+          <div class="arch-label">Ingestion</div>
+          <div class="arch-item">HTTP / TCP Client</div>
+          <div class="arch-item">Kafka / S3</div>
+          <div class="arch-item">Bulk INSERT</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-column">
+          <div class="arch-label">Storage</div>
+          <div class="arch-item">Columnar Parquet</div>
+          <div class="arch-item">Parts & Merges</div>
+          <div class="arch-item">Sparse Indexes</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-column">
+          <div class="arch-label">Engines</div>
+          <div class="arch-item arch-highlight">MergeTree</div>
+          <div class="arch-item arch-highlight">Aggregating</div>
+          <div class="arch-item arch-highlight">Replacing</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-column">
+          <div class="arch-label">Query</div>
+          <div class="arch-item">Vectorized Exec</div>
+          <div class="arch-item">Parallel Scans</div>
+          <div class="arch-item">Materialized Views</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── ENGINES ──────────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-engines">
+      <div class="page-header">
+        <h1>ClickHouse Table Engines</h1>
+        <p class="page-subtitle">Every table in ClickHouse uses an <em>engine</em> that defines how data is stored,
+          merged, and queried. Choose the right engine for your workload.</p>
+      </div>
+
+      <div class="engines-grid">
+
+        <div class="engine-card glass">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#f59e0b,#d97706)">MergeTree</div>
+          <h3>MergeTree</h3>
+          <p class="engine-desc">The <strong>foundation</strong> of all ClickHouse engines. Data is written in parts,
+            then merged in the background. Supports <code>ORDER BY</code>, <code>PARTITION BY</code>, sparse primary
+            indexes, and <code>TTL</code>.</p>
+          <div class="code-block">
+            -- Used for: telemetry_events, app_logs
+            CREATE TABLE events (
+            timestamp DateTime,
+            service LowCardinality(String),
+            user_id String
+            )
+            ENGINE = MergeTree()
+            PARTITION BY toYYYYMM(timestamp)
+            ORDER BY (service, timestamp)
+            TTL timestamp + INTERVAL 90 DAY;</div>
+          <div class="use-cases">
+            <span class="tag">📡 Telemetry</span>
+            <span class="tag">📋 Logs</span>
+            <span class="tag">📈 Time-series</span>
+          </div>
+          <button class="btn btn-sm" onclick="runEngineDemo('mergetree-demo')">▶ Run Live Demo</button>
+          <div class="engine-result" id="result-mergetree-demo"></div>
+        </div>
+
+        <div class="engine-card glass">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#10b981,#059669)">SummingMergeTree</div>
+          <h3>SummingMergeTree</h3>
+          <p class="engine-desc">Automatically <strong>sums numeric columns</strong> during merges. Perfect for counters
+            and accumulators — no aggregation needed at query time.</p>
+          <div class="code-block">
+            -- Used for: cost_usage
+            CREATE TABLE cost_usage (
+            timestamp DateTime,
+            service LowCardinality(String),
+            team LowCardinality(String),
+            cost_usd Float64,
+            api_calls UInt32
+            )
+            ENGINE = SummingMergeTree(
+            (cost_usd, api_calls) -- columns to sum
+            )
+            ORDER BY (team, service, timestamp);</div>
+          <div class="use-cases">
+            <span class="tag">💰 Cost Tracking</span>
+            <span class="tag">📊 Budget Rollup</span>
+          </div>
+          <button class="btn btn-sm" onclick="runEngineDemo('summing-demo')">▶ Run Live Demo</button>
+          <div class="engine-result" id="result-summing-demo"></div>
+        </div>
+
+        <div class="engine-card glass">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">AggregatingMergeTree
+          </div>
+          <h3>AggregatingMergeTree</h3>
+          <p class="engine-desc">Stores <strong>partial aggregate states</strong> (e.g. HyperLogLog for
+            <code>uniq</code>). Used with <em>Materialized Views</em> for blazing-fast pre-computed rollups.</p>
+          <div class="code-block">
+            -- Backing table for the hourly rollup MV
+            CREATE TABLE telemetry_hourly_agg (
+            hour DateTime,
+            service LowCardinality(String),
+            event_count AggregateFunction(count),
+            unique_users AggregateFunction(uniq, String)
+            )
+            ENGINE = AggregatingMergeTree()
+            ORDER BY (service, hour);
+
+            -- Materialized View feeds it automatically
+            CREATE MATERIALIZED VIEW mv_hourly
+            TO telemetry_hourly_agg AS
+            SELECT toStartOfHour(ts) AS hour, service,
+            countState() AS event_count,
+            uniqState(user_id) AS unique_users
+            FROM events GROUP BY hour, service;</div>
+          <div class="use-cases">
+            <span class="tag">📉 Rollups</span>
+            <span class="tag">🔭 Pre-aggregation</span>
+          </div>
+          <button class="btn btn-sm" onclick="runEngineDemo('aggregating-demo')">▶ Run Live Demo</button>
+          <div class="engine-result" id="result-aggregating-demo"></div>
+        </div>
+
+        <div class="engine-card glass">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#ec4899,#db2777)">ReplacingMergeTree</div>
+          <h3>ReplacingMergeTree</h3>
+          <p class="engine-desc">Keeps only the <strong>latest version</strong> of each row with the same
+            <code>ORDER BY</code> key. Great for upsert-style workloads. Deduplication happens asynchronously on merge.
+          </p>
+          <div class="code-block">
+            -- Used for: error_summary
+            CREATE TABLE error_summary (
+            date Date,
+            service LowCardinality(String),
+            error_msg String,
+            count UInt32,
+            version UInt64 -- higher wins
+            )
+            ENGINE = ReplacingMergeTree(version)
+            ORDER BY (date, service, error_msg);
+
+            -- "Upsert" by re-inserting with new version:
+            INSERT INTO error_summary VALUES
+            (today(), 'api', 'timeout', 42, now64());</div>
+          <div class="use-cases">
+            <span class="tag">⚠️ Deduplication</span>
+            <span class="tag">🔄 Upserts</span>
+          </div>
+          <button class="btn btn-sm" onclick="runEngineDemo('replicated-demo')">▶ Run Live Demo</button>
+          <div class="engine-result" id="result-replicated-demo"></div>
+        </div>
+
+        <div class="engine-card glass">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#f97316,#ea580c)">CollapsingMergeTree</div>
+          <h3>CollapsingMergeTree</h3>
+          <p class="engine-desc">Uses a <strong>sign column</strong> (+1/-1) to cancel previous rows. Allows efficient
+            in-place corrections without mutations — perfect for billing adjustments.</p>
+          <div class="code-block">
+            -- Used for: budget_limits
+            CREATE TABLE budget_limits (
+            date Date,
+            team LowCardinality(String),
+            budget_usd Float64,
+            sign Int8 -- +1 insert, -1 cancel
+            )
+            ENGINE = CollapsingMergeTree(sign)
+            ORDER BY (date, team);
+
+            -- Correct a budget: cancel then re-insert
+            INSERT INTO budget_limits VALUES
+            ('2024-01-01', 'core-platform', 5000, -1),
+            ('2024-01-01', 'core-platform', 7500, +1);</div>
+          <div class="use-cases">
+            <span class="tag">🔁 Corrections</span>
+            <span class="tag">💳 Billing</span>
+          </div>
+          <button class="btn btn-sm" onclick="runEngineDemo('aggregating-demo')">▶ View Budget Data</button>
+          <div class="engine-result" id="result-collapsing-demo"></div>
+        </div>
+
+        <div class="engine-card glass">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#14b8a6,#0d9488)">ReplicatedMergeTree</div>
+          <h3>ReplicatedMergeTree</h3>
+          <p class="engine-desc">All MergeTree variants have a <strong>Replicated</strong> counterpart. Data is
+            synchronised across shards via <em>ZooKeeper / ClickHouse Keeper</em> for high availability.</p>
+          <div class="code-block">
+            -- Production HA setup on 2+ nodes:
+            CREATE TABLE events ON CLUSTER my_cluster (
+            timestamp DateTime,
+            service String
+            )
+            ENGINE = ReplicatedMergeTree(
+            '/clickhouse/tables/{shard}/events',
+            '{replica}' -- auto-substituted
+            )
+            ORDER BY (service, timestamp);
+            -- Reads+writes auto-fan-out to all replicas</div>
+          <div class="use-cases">
+            <span class="tag">🔒 High Availability</span>
+            <span class="tag">🌍 Sharding</span>
+          </div>
+          <button class="btn btn-sm" onclick="runEngineDemo('replicated-demo')">▶ View Log Stats</button>
+          <div class="engine-result" id="result-replicated2-demo"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── TELEMETRY ────────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-telemetry">
+      <div class="page-header">
+        <h1>Telemetry Dashboard</h1>
+        <p class="page-subtitle">Real-time event analytics powered by ClickHouse's <strong>MergeTree</strong> engine and
+          <strong>Materialized Views</strong>. Simulating 30k+ events from 7 microservices.</p>
+      </div>
+
+      <div class="kpi-row" id="telemetryKpis">
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="kpi-total-events">—</div>
+          <div class="kpi-label">Total Events</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="kpi-unique-users">—</div>
+          <div class="kpi-label">Unique Users</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="kpi-services">—</div>
+          <div class="kpi-label">Active Services</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="kpi-p95">—</div>
+          <div class="kpi-label">P95 Duration (ms)</div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card glass">
+          <div class="chart-header">
+            <h3>Events Over Time (24h)</h3>
+            <div class="chart-note">MergeTree ORDER BY (service, timestamp)</div>
+          </div>
+          <canvas id="telemetryTimelineChart" height="240"></canvas>
+        </div>
+        <div class="chart-card glass" style="flex:0 0 340px">
+          <div class="chart-header">
+            <h3>Event Type Breakdown</h3>
+            <div class="chart-note">Queried in &lt; 50ms on 30k rows</div>
+          </div>
+          <canvas id="telemetryFunnelChart" height="240"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card glass">
+        <div class="chart-header">
+          <h3>Top Services by Event Volume</h3>
+          <div class="chart-note">uniq(user_id) uses HyperLogLog for O(1) cardinality</div>
+        </div>
+        <canvas id="servicesChart" height="160"></canvas>
+      </div>
+
+      <div class="section-title" style="margin-top:2rem">Inject a Live Event</div>
+      <div class="inject-panel glass">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Service</label>
+            <select id="inject-service">
+              <option>frontend</option>
+              <option>api-gateway</option>
+              <option>auth-service</option>
+              <option>payment-service</option>
+              <option>recommendation-engine</option>
+              <option>data-pipeline</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Event Type</label>
+            <select id="inject-event">
+              <option>page_view</option>
+              <option>click</option>
+              <option>search</option>
+              <option>purchase</option>
+              <option>signup</option>
+              <option>api_call</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>User ID</label>
+            <input id="inject-user" type="text" value="user-1234" />
+          </div>
+          <button class="btn btn-primary" onclick="injectEvent()">⚡ INSERT INTO ClickHouse</button>
+        </div>
+        <div id="inject-result" class="inject-result"></div>
+      </div>
+    </section>
+
+    <!-- ─── LOGGING ──────────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-logging">
+      <div class="page-header">
+        <h1>Structured Logging</h1>
+        <p class="page-subtitle">ClickHouse as your log store — with <strong>TTL auto-expiry</strong>, full-text search,
+          and sub-second queries across millions of log lines.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi-card glass kpi-debug">
+          <div class="kpi-value" id="log-debug">—</div>
+          <div class="kpi-label">DEBUG</div>
+        </div>
+        <div class="kpi-card glass kpi-info">
+          <div class="kpi-value" id="log-info">—</div>
+          <div class="kpi-label">INFO</div>
+        </div>
+        <div class="kpi-card glass kpi-warn">
+          <div class="kpi-value" id="log-warn">—</div>
+          <div class="kpi-label">WARN</div>
+        </div>
+        <div class="kpi-card glass kpi-error">
+          <div class="kpi-value" id="log-error">—</div>
+          <div class="kpi-label">ERROR</div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card glass">
+          <div class="chart-header">
+            <h3>Error & Warning Rate (24h)</h3>
+            <div class="chart-note">toStartOfHour() partitioning enables fast range scans</div>
+          </div>
+          <canvas id="logErrorRateChart" height="200"></canvas>
+        </div>
+        <div class="chart-card glass" style="flex: 0 0 360px">
+          <div class="chart-header">
+            <h3>Top Errors (24h)</h3>
+          </div>
+          <div id="topErrorsList" class="top-errors-list"></div>
+        </div>
+      </div>
+
+      <div class="logs-toolbar glass">
+        <div class="form-group">
+          <label>Level</label>
+          <select id="log-level-filter" onchange="loadLogs()">
+            <option value="all">All Levels</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO">INFO</option>
+            <option value="WARN">WARN</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Service</label>
+          <select id="log-service-filter" onchange="loadLogs()">
+            <option value="all">All Services</option>
+            <option>frontend</option>
+            <option>api-gateway</option>
+            <option>auth-service</option>
+            <option>payment-service</option>
+            <option>recommendation-engine</option>
+            <option>data-pipeline</option>
+            <option>ml-inference</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Search</label>
+          <input id="log-search" type="text" placeholder="Search messages…" oninput="debounceLoadLogs()" />
+        </div>
+        <button class="btn btn-primary" onclick="loadLogs()">🔍 Query</button>
+      </div>
+
+      <div class="log-table-wrap glass">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Level</th>
+              <th>Service</th>
+              <th>Host</th>
+              <th>Duration</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="logTableBody">
+            <tr>
+              <td colspan="6" class="loading-row">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── COSTS ────────────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-costs">
+      <div class="page-header">
+        <h1>Cost & Usage Analytics</h1>
+        <p class="page-subtitle">Track API spend, token consumption, and per-team budgets. Powered by
+          <strong>SummingMergeTree</strong> — totals are maintained automatically during merges.</p>
+      </div>
+
+      <div class="kpi-row" id="costKpis">
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="cost-total">—</div>
+          <div class="kpi-label">Total Spend (30d)</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="cost-tokens">—</div>
+          <div class="kpi-label">Total Tokens</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="cost-calls">—</div>
+          <div class="kpi-label">API Calls</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-value" id="cost-avg">—</div>
+          <div class="kpi-label">Avg Cost / 1k calls</div>
+        </div>
+      </div>
+
+      <div id="cost-alerts" class="alerts-row"></div>
+
+      <div class="charts-row">
+        <div class="chart-card glass">
+          <div class="chart-header">
+            <h3>Daily Spend (30 days)</h3>
+            <div class="chart-note">SummingMergeTree auto-sums cost_usd during background merges</div>
+          </div>
+          <canvas id="dailyCostChart" height="220"></canvas>
+        </div>
+        <div class="chart-card glass" style="flex: 0 0 340px">
+          <div class="chart-header">
+            <h3>Spend by Team</h3>
+          </div>
+          <canvas id="teamCostChart" height="220"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card glass">
+        <div class="chart-header">
+          <h3>Cost per Service (30d)</h3>
+          <div class="chart-note">GROUP BY service with avg(cost_usd / api_calls)</div>
+        </div>
+        <div id="servicesCostTable" class="services-cost-table"></div>
+      </div>
+    </section>
+
+    <!-- ─── CLUSTER & REPLICATION ─────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-cluster">
+      <div class="page-header">
+        <h1>Sharding &amp; Replication</h1>
+        <p class="page-subtitle">Two fundamental ClickHouse cluster concepts — <strong>Sharding</strong> splits data
+          horizontally across nodes for scale, while <strong>Replication</strong> duplicates data across nodes for high
+          availability. This live demo runs a real 2-node cluster.</p>
+      </div>
+
+      <!-- Concept Cards -->
+      <div class="intro-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:20px">
+        <div class="intro-card glass">
+          <div class="intro-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect x="2" y="3" width="9" height="18" rx="2" stroke="currentColor" stroke-width="2" />
+              <rect x="13" y="3" width="9" height="18" rx="2" stroke="currentColor" stroke-width="2" />
+            </svg>
+          </div>
+          <h3>Sharding — Scale Out</h3>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:10px">Each <strong>shard</strong> owns a distinct
+            subset of the data. A <code>Distributed</code> table fans writes out (using a sharding key hash) and merges
+            reads from all shards transparently.</p>
+          <div class="code-block" style="font-size:11px">-- Sharding key assigns each row to a shard
+            ENGINE = Distributed(
+            demo_cluster, -- cluster name
+            cluster_demo, -- database
+            events_local, -- local table on each shard
+            murmurHash3_32(user_id)-- sharding key
+            );
+            -- user-42 always goes to shard 1
+            -- user-99 always goes to shard 2</div>
+          <div class="use-cases">
+            <span class="tag">📈 Horizontal Scale</span>
+            <span class="tag">⚡ Parallel Reads</span>
+            <span class="tag">🔀 Hash Routing</span>
+          </div>
+        </div>
+
+        <div class="intro-card glass">
+          <div class="intro-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor"
+                stroke-width="2" />
+            </svg>
+          </div>
+          <h3>Replication — High Availability</h3>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:10px">Each <strong>replica</strong> holds the same
+            data. <strong>ClickHouse Keeper</strong> (ZooKeeper-compatible) coordinates which replica is primary and
+            syncs inserts automatically.</p>
+          <div class="code-block" style="font-size:11px">-- SAME ZK path on both replicas
+            -- different {replica} macro per node
+            ENGINE = ReplicatedMergeTree(
+            '/clickhouse/tables/ha/events', -- shared ZK path
+            '{replica}' -- replica-1 on node1
+            -- replica-2 on node2
+            );
+            -- Write to node1 → auto-synced to node2!</div>
+          <div class="use-cases">
+            <span class="tag">🔒 High Availability</span>
+            <span class="tag">🔄 Auto-Sync</span>
+            <span class="tag">💾 Keeper Coord.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Architecture Diagram -->
+      <div class="section-title">Live Cluster Architecture</div>
+      <div class="cluster-arch glass">
+        <div class="ca-box ca-client">
+          <div class="ca-icon">🖥</div>
+          <div class="ca-title">Your App</div>
+          <div class="ca-sub">INSERT / SELECT</div>
+        </div>
+        <div class="ca-arrow-col">
+          <div class="ca-arrow-line">↓ INSERT (fan-out)</div>
+          <div class="ca-arrow-line" style="color:var(--green)">↑ SELECT (merge)</div>
+        </div>
+        <div class="ca-box ca-dist">
+          <div class="ca-icon">⚡</div>
+          <div class="ca-title">Distributed Table</div>
+          <div class="ca-sub">murmurHash3_32(user_id)</div>
+          <div class="ca-sub" style="color:var(--ch-yellow)">ENGINE = Distributed(demo_cluster…)</div>
+        </div>
+        <div class="ca-arrow-col">
+          <div class="ca-arrow-line" style="color:var(--ch-yellow)">→ shard 01</div>
+          <div class="ca-arrow-line" style="color:var(--accent2)">→ shard 02</div>
+        </div>
+        <div class="ca-shards-col">
+          <div class="ca-box ca-shard" id="nodeStatusBox1">
+            <div class="ca-icon">🟡</div>
+            <div class="ca-title">clickhouse-node1</div>
+            <div class="ca-sub">Shard 01 · Replica 1</div>
+            <div class="ca-sub">Port 8124</div>
+            <div class="ca-sub" id="ca-node1-status">Checking…</div>
+          </div>
+          <div class="ca-keeper">
+            <div style="font-size:11px;color:var(--text3)">↕ ZK sync</div>
+            <div class="ca-box ca-keeper-box">
+              <div class="ca-icon">🗝</div>
+              <div class="ca-title">CH Keeper</div>
+              <div class="ca-sub">Port 9181</div>
+            </div>
+          </div>
+          <div class="ca-box ca-shard" id="nodeStatusBox2">
+            <div class="ca-icon">🟡</div>
+            <div class="ca-title">clickhouse-node2</div>
+            <div class="ca-sub">Shard 02 · Replica 2</div>
+            <div class="ca-sub">Port 8125</div>
+            <div class="ca-sub" id="ca-node2-status">Checking…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cluster Topology Table -->
+      <div class="section-title" style="margin-top:24px">Live Topology (system.clusters)</div>
+      <div class="glass" style="padding:0;overflow:hidden;border-radius:var(--radius);margin-bottom:20px">
+        <table class="log-table" id="clusterTopologyTable">
+          <thead>
+            <tr>
+              <th>Cluster</th>
+              <th>Shard</th>
+              <th>Replica</th>
+              <th>Host</th>
+              <th>Port</th>
+              <th>Is Local</th>
+            </tr>
+          </thead>
+          <tbody id="topoTableBody">
+            <tr>
+              <td colspan="6" class="loading-row">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Two demo sections -->
+      <div class="charts-row" style="gap:20px;align-items:flex-start">
+
+        <!-- SHARDING DEMO -->
+        <div class="glass" style="flex:1;padding:22px;border-radius:var(--radius)">
+          <h3 style="margin-bottom:6px">🔀 Sharding Demo</h3>
+          <p style="font-size:12.5px;color:var(--text2);margin-bottom:16px">8,000 rows were inserted via the
+            <code>Distributed</code> table. ClickHouse routed each row to a shard using
+            <code>murmurHash3_32(user_id)</code>.</p>
+          <canvas id="shardDistChart" height="160"></canvas>
+          <div class="section-title" style="margin-top:16px">Insert a test row →</div>
+          <div class="form-row" style="flex-wrap:wrap">
+            <div class="form-group">
+              <label>User ID</label>
+              <input id="shard-user-id" type="text" value="user-42" style="width:140px" />
+            </div>
+            <div class="form-group">
+              <label>Service</label>
+              <select id="shard-service">
+                <option>frontend</option>
+                <option>api-gateway</option>
+                <option>auth-service</option>
+                <option>payment-service</option>
+                <option>ml-inference</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="insertAndRoute()">⚡ INSERT &amp; Route</button>
+          </div>
+          <div id="shard-route-result" class="shard-route-result"></div>
+
+          <!-- Cross-shard query button -->
+          <div class="section-title" style="margin-top:14px">Cross-shard query →</div>
+          <button class="btn btn-sm" onclick="runDistributedQuery()">🌐 SELECT from Distributed table</button>
+          <div class="engine-result" id="distributed-result" style="margin-top:10px"></div>
+        </div>
+
+        <!-- REPLICATION DEMO -->
+        <div class="glass" style="flex:1;padding:22px;border-radius:var(--radius)">
+          <h3 style="margin-bottom:6px">🔄 Replication Demo</h3>
+          <p style="font-size:12.5px;color:var(--text2);margin-bottom:16px">Both nodes share the table
+            <code>events_replicated</code> under <em>the same ZK path</em>. Write to node1, and node2 gets it
+            automatically via ClickHouse Keeper.</p>
+
+          <!-- Row count per replica -->
+          <div id="repl-row-counts" class="repl-counts-row">Loading…</div>
+
+          <!-- Live replication button -->
+          <div class="section-title" style="margin-top:16px">Prove replication live →</div>
+          <button class="btn btn-primary" id="replBtn" onclick="runReplicationDemo()">
+            ✍️ Write to node1 → Verify on node2
+          </button>
+          <div id="repl-result" class="repl-result"></div>
+
+          <!-- ZK path explanation -->
+          <div class="section-title" style="margin-top:16px">How Keeper coordinates this</div>
+          <div class="code-block" style="font-size:11px">-- ZooKeeper/Keeper path layout:
+            /clickhouse/tables/ha/events_replicated/
+            replicas/
+            replica-1/ ← node1 registers here
+            log_pointer
+            is_active
+            host: clickhouse-node1
+            replica-2/ ← node2 registers here
+            log_pointer
+            is_active
+            host: clickhouse-node2
+            log/ ← shared INSERT log
+            log-0000001 (INSERT from node1)
+            log-0000002 → node2 pulls &amp; applies</div>
+
+          <!-- system.replicas -->
+          <div class="section-title" style="margin-top:12px">system.replicas →</div>
+          <button class="btn btn-sm" onclick="loadReplStatus()">🔍 Check Replication Status</button>
+          <div class="engine-result" id="repl-status-result" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- SQL Reference -->
+      <div class="section-title" style="margin-top:24px">Cluster SQL Reference</div>
+      <div class="engines-grid" style="grid-template-columns:repeat(2,1fr);gap:14px">
+        <div class="engine-card glass" style="padding:18px">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#f59e0b,#d97706)">ON CLUSTER</div>
+          <div class="code-block" style="font-size:11px;margin-top:8px">-- Run DDL on ALL nodes at once:
+            CREATE TABLE telemetry ON CLUSTER demo_cluster
+            (
+            ts DateTime,
+            service String,
+            user_id String
+            )
+            ENGINE = ReplicatedMergeTree(
+            '/clickhouse/tables/{shard}/telemetry',
+            '{replica}'
+            )
+            ORDER BY (service, ts);
+
+            -- Then create the Distributed view:
+            CREATE TABLE telemetry_all ON CLUSTER demo_cluster
+            AS telemetry
+            ENGINE = Distributed(
+            demo_cluster, currentDatabase(),
+            telemetry, rand()
+            );</div>
+        </div>
+        <div class="engine-card glass" style="padding:18px">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">Monitoring</div>
+          <div class="code-block" style="font-size:11px;margin-top:8px">-- Check cluster topology:
+            SELECT cluster, shard_num, host_name
+            FROM system.clusters
+            ORDER BY cluster, shard_num;
+
+            -- Monitor replica lag:
+            SELECT table, replica_name,
+            queue_size,
+            inserts_in_queue,
+            last_queue_update
+            FROM system.replicas;
+
+            -- Replication queue details:
+            SELECT database, table, type,
+            num_tries, last_exception
+            FROM system.replication_queue
+            WHERE num_tries > 0
+            ORDER BY create_time DESC;</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─── QUERY PLAYGROUND ─────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-query">
+      <div class="page-header">
+        <h1>SQL Playground</h1>
+        <p class="page-subtitle">Run any ClickHouse SQL query against the live demo database. Explore all the tables
+          seeded with realistic data.</p>
+      </div>
+
+      <div class="playground-layout">
+        <div class="playground-sidebar">
+          <div class="section-title">Quick Queries</div>
+          <div class="quick-queries">
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.eventsByHour)">📊 Events by Hour</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.topUsers)">👤 Top Users</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.errorRate)">🚨 Error Rate</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.costByService)">💰 Cost by Service</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.p95Latency)">⏱ P95 Latency</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.uniqueUsers)">🔢 HLL Unique Users</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.systemTables)">🗄 System Tables</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.budgetCollapsing)">📉 Budget Collapse</button>
+            <button class="quick-query-btn" onclick="setQuery(QUERIES.ttlCheck)">⌛ TTL Info</button>
+          </div>
+
+          <div class="section-title" style="margin-top:1.5rem">Tables in demo DB</div>
+          <div id="playground-tables" class="table-list">Loading…</div>
+        </div>
+
+        <div class="playground-main">
+          <div class="editor-wrap glass">
+            <div class="editor-toolbar">
+              <span class="editor-label">SQL</span>
+              <button class="btn btn-primary btn-sm" onclick="runQuery()">▶ Run Query</button>
+              <button class="btn btn-sm" onclick="clearQuery()">✕ Clear</button>
+            </div>
+            <textarea id="queryEditor" spellcheck="false"
+              placeholder="SELECT * FROM telemetry_events LIMIT 10;"></textarea>
+          </div>
+          <div id="queryStatus" class="query-status"></div>
+          <div class="results-wrap glass" id="queryResultsWrap" style="display:none">
+            <div class="results-header">
+              <span id="resultsCount"></span>
+              <button class="btn btn-sm" onclick="copyResults()">📋 Copy JSON</button>
+            </div>
+            <div class="results-table-wrap">
+              <table class="results-table" id="resultsTable"></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

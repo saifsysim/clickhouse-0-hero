@@ -1,0 +1,13 @@
+<clickhouse>
+    <!--
+        Macros are substituted at CREATE TABLE time into ReplicatedMergeTree paths.
+        ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/events', '{replica}')
+        expands to:
+            shard  → 01
+            replica → replica-1
+    -->
+    <macros>
+        <shard>01</shard>
+        <replica>replica-1</replica>
+    </macros>
+</clickhouse>

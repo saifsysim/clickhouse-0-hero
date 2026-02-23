@@ -1,0 +1,12 @@
+<clickhouse>
+    <!--
+        Macros for NODE 2.
+        For the SHARDING demo: shard=02 → different ZK path → separate shard
+        For the REPLICATION demo: replica=replica-2 → same ZK path as node1
+                                   but different {replica} → true HA replication
+    -->
+    <macros>
+        <shard>02</shard>
+        <replica>replica-2</replica>
+    </macros>
+</clickhouse>

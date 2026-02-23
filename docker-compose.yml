@@ -1,0 +1,125 @@
+services:
+
+  # ─── Single-node ClickHouse (original demos: telemetry, logs, costs) ─────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: clickhouse-explorer
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: demo
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./docker/clickhouse-config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8123/ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── Backend API ──────────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: clickhouse-backend
+    ports:
+      - "3001:3001"
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_DB: demo
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      NODE_ENV: production
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── ClickHouse Keeper (ZooKeeper replacement for cluster coordination) ───────
+  clickhouse-keeper:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: clickhouse-keeper
+    ports:
+      - "9181:9181"
+    volumes:
+      - keeper-data:/var/lib/clickhouse
+      - ./docker/keeper-config.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8123/ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ─── Cluster Node 1 (Shard 01 / Replica 1) ──────────────────────────────────
+  clickhouse-node1:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: clickhouse-node1
+    ports:
+      - "8124:8123" # HTTP: localhost:8124
+      - "9001:9000" # Native TCP: localhost:9001
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - node1-data:/var/lib/clickhouse
+      - ./docker/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+      - ./docker/node1-macros.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    depends_on:
+      clickhouse-keeper:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8123/ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ─── Cluster Node 2 (Shard 02 / Replica 2) ──────────────────────────────────
+  clickhouse-node2:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: clickhouse-node2
+    ports:
+      - "8125:8123" # HTTP: localhost:8125
+      - "9002:9000" # Native TCP: localhost:9002
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - node2-data:/var/lib/clickhouse
+      - ./docker/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+      - ./docker/node2-macros.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    depends_on:
+      clickhouse-keeper:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8123/ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  clickhouse-data:
+  keeper-data:
+  node1-data:
+  node2-data:

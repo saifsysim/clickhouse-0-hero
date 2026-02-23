@@ -1,0 +1,52 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+
+    <!--
+        demo_cluster → SHARDING demo
+        2 shards, 1 replica each.
+        Rows are distributed across both nodes by hash of user_id.
+    -->
+    <remote_servers>
+        <demo_cluster>
+            <shard>
+                <replica>
+                    <host>clickhouse-node1</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+            <shard>
+                <replica>
+                    <host>clickhouse-node2</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </demo_cluster>
+
+        <!--
+            ha_cluster → REPLICATION demo
+            1 shard, 2 replicas (node1 + node2).
+            Data written to either replica is synced to the other automatically.
+        -->
+        <ha_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse-node1</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>clickhouse-node2</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </ha_cluster>
+    </remote_servers>
+
+    <!-- Point both nodes at the ClickHouse Keeper for ReplicatedMergeTree coordination -->
+    <zookeeper>
+        <node>
+            <host>clickhouse-keeper</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+</clickhouse>
