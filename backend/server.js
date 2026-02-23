@@ -1,6 +1,7 @@
 const { createClient } = require('@clickhouse/client');
 const express = require('express');
 const cors = require('cors');
+const ai = require('./ai');
 
 const app = express();
 app.use(cors());
@@ -570,7 +571,91 @@ app.post('/api/cluster/replicate-demo', async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ════════════════════════════════════════════════════════════════════════════════
+// AI ENDPOINTS
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Check if Ollama is running and which models are available
+app.get('/api/ai/status', async (req, res) => {
+  try {
+    const r = await fetch('http://localhost:11434/api/tags');
+    const data = await r.json();
+    const models = (data.models || []).map(m => m.name);
+    res.json({
+      ollama: 'running',
+      models,
+      llmReady: models.some(m => m.includes('llama3')),
+      embedReady: models.some(m => m.includes('nomic-embed')),
+    });
+  } catch {
+    res.json({ ollama: 'not running', models: [], llmReady: false, embedReady: false });
+  }
+});
+
+// J1 — Text-to-SQL chatbot
+// POST /api/ai/chat  { question: "Which service had most errors?" }
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question?.trim()) return res.status(400).json({ error: 'question is required' });
+    const result = await ai.textToSQL(question);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// J2 — AI Insights Agent
+// GET /api/ai/insights?section=all|telemetry|logging|costs
+app.get('/api/ai/insights', async (req, res) => {
+  try {
+    const section = req.query.section || 'all';
+    const insights = await ai.generateInsights(section);
+    res.json({ insights, section, generatedAt: new Date().toISOString() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// J3 — RAG query
+// POST /api/ai/rag  { question: "How does ReplicatedMergeTree work?" }
+app.post('/api/ai/rag', async (req, res) => {
+  try {
+    const { question, k } = req.body;
+    if (!question?.trim()) return res.status(400).json({ error: 'question is required' });
+    const result = await ai.ragQuery(question, k || 5);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// J3 — Index a custom document into the RAG knowledge base
+// POST /api/ai/rag/index  { source, category, text }
+app.post('/api/ai/rag/index', async (req, res) => {
+  try {
+    const { source, category, text } = req.body;
+    if (!source || !category || !text) {
+      return res.status(400).json({ error: 'source, category, and text are required' });
+    }
+    const result = await ai.indexDocument(source, category, text);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── SERVER START ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`🚀 ClickHouse Explorer API running on :${PORT}`));
+app.listen(PORT, async () => {
+  console.log(`🚀 ClickHouse Explorer API running on :${PORT}`);
+  // Initialize RAG table and seed knowledge base on startup
+  // (only seeds if table is empty — safe to call every restart)
+  try {
+    await ai.seedRAGKnowledge();
+  } catch (e) {
+    console.warn('⚠️  RAG init skipped (Ollama not ready yet):', e.message);
+  }
+});
+
 
