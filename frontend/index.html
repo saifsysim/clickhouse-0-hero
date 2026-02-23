@@ -95,6 +95,17 @@
         </svg>
         SQL Playground
       </button>
+
+      <div class="nav-section-label">AI Layer</div>
+      <button class="nav-item ai-nav-item" data-tab="ai" onclick="switchTab('ai',this)" id="ai-nav-btn">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 2a7 7 0 0 1 7 7c0 3.5-2 6-5 7v1a1 1 0 0 1-2 0v-1c-3-1-5-3.5-5-7a7 7 0 0 1 7-7z"
+            stroke="currentColor" stroke-width="2" />
+          <path d="M9 21h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        AI Assistant
+        <span class="ai-badge" id="ai-status-dot">●</span>
+      </button>
     </nav>
 
     <div class="sidebar-footer">
@@ -283,7 +294,8 @@
           </div>
           <h3>AggregatingMergeTree</h3>
           <p class="engine-desc">Stores <strong>partial aggregate states</strong> (e.g. HyperLogLog for
-            <code>uniq</code>). Used with <em>Materialized Views</em> for blazing-fast pre-computed rollups.</p>
+            <code>uniq</code>). Used with <em>Materialized Views</em> for blazing-fast pre-computed rollups.
+          </p>
           <div class="code-block">
             -- Backing table for the hourly rollup MV
             CREATE TABLE telemetry_hourly_agg (
@@ -400,7 +412,8 @@
       <div class="page-header">
         <h1>Telemetry Dashboard</h1>
         <p class="page-subtitle">Real-time event analytics powered by ClickHouse's <strong>MergeTree</strong> engine and
-          <strong>Materialized Views</strong>. Simulating 30k+ events from 7 microservices.</p>
+          <strong>Materialized Views</strong>. Simulating 30k+ events from 7 microservices.
+        </p>
       </div>
 
       <div class="kpi-row" id="telemetryKpis">
@@ -582,7 +595,8 @@
       <div class="page-header">
         <h1>Cost & Usage Analytics</h1>
         <p class="page-subtitle">Track API spend, token consumption, and per-team budgets. Powered by
-          <strong>SummingMergeTree</strong> — totals are maintained automatically during merges.</p>
+          <strong>SummingMergeTree</strong> — totals are maintained automatically during merges.
+        </p>
       </div>
 
       <div class="kpi-row" id="costKpis">
@@ -774,7 +788,8 @@
           <h3 style="margin-bottom:6px">🔀 Sharding Demo</h3>
           <p style="font-size:12.5px;color:var(--text2);margin-bottom:16px">8,000 rows were inserted via the
             <code>Distributed</code> table. ClickHouse routed each row to a shard using
-            <code>murmurHash3_32(user_id)</code>.</p>
+            <code>murmurHash3_32(user_id)</code>.
+          </p>
           <canvas id="shardDistChart" height="160"></canvas>
           <div class="section-title" style="margin-top:16px">Insert a test row →</div>
           <div class="form-row" style="flex-wrap:wrap">
@@ -807,7 +822,8 @@
           <h3 style="margin-bottom:6px">🔄 Replication Demo</h3>
           <p style="font-size:12.5px;color:var(--text2);margin-bottom:16px">Both nodes share the table
             <code>events_replicated</code> under <em>the same ZK path</em>. Write to node1, and node2 gets it
-            automatically via ClickHouse Keeper.</p>
+            automatically via ClickHouse Keeper.
+          </p>
 
           <!-- Row count per replica -->
           <div id="repl-row-counts" class="repl-counts-row">Loading…</div>
@@ -943,6 +959,196 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- ─── AI ASSISTANT ─────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-ai">
+      <div class="page-header">
+        <h1>AI Assistant <span id="ai-header-status" style="font-size:14px;font-weight:400;color:var(--text3)">Checking
+            Ollama…</span></h1>
+        <p class="page-subtitle">Three AI engineering patterns built on top of ClickHouse — powered by <strong>Ollama
+            (local LLM, no API key)</strong>. Learn how to add AI to any database.</p>
+      </div>
+
+      <!-- AI Status Banner -->
+      <div id="ai-status-banner" class="ai-status-banner glass" style="display:none"></div>
+
+      <!-- Three-column approach cards -->
+      <div class="ai-approach-grid">
+        <div class="ai-approach-card glass" onclick="showAISection('chat')">
+          <div class="ai-approach-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">💬</div>
+          <strong>J1 — Text-to-SQL</strong>
+          <p>Ask questions in plain English → LLM generates SQL → runs on ClickHouse → answer</p>
+          <span class="tag">NL → SQL</span>
+          <span class="tag">Schema Injection</span>
+          <span class="tag">Self-Correction</span>
+        </div>
+        <div class="ai-approach-card glass" onclick="showAISection('insights')">
+          <div class="ai-approach-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">🤖</div>
+          <strong>J2 — Insights Agent</strong>
+          <p>Agent reads all tables → runs diagnostic queries → LLM finds patterns → surfaces anomalies</p>
+          <span class="tag">Agentic Loop</span>
+          <span class="tag">Tool Calls</span>
+          <span class="tag">Structured JSON</span>
+        </div>
+        <div class="ai-approach-card glass" onclick="showAISection('rag')">
+          <div class="ai-approach-icon" style="background:linear-gradient(135deg,#10b981,#059669)">📚</div>
+          <strong>J3 — RAG Search</strong>
+          <p>Question → embed → cosineDistance in ClickHouse → top-K chunks → LLM answers from context</p>
+          <span class="tag">Embeddings</span>
+          <span class="tag">cosineDistance()</span>
+          <span class="tag">Vector Store</span>
+        </div>
+      </div>
+
+      <!-- ── J1: TEXT-TO-SQL CHAT ──────────────────────────────────────────── -->
+      <div id="ai-section-chat" class="ai-section">
+        <div class="section-title">J1 — Text-to-SQL Chatbot</div>
+        <div class="ai-pipeline-hint glass">
+          <span class="pipe-step">① Your question</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">② Schema injected into prompt</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">③ LLM generates SQL</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">④ ClickHouse runs it</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">⑤ LLM summarizes</span>
+        </div>
+
+        <div class="chat-container glass">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg system">
+              👋 Ask me anything about the ClickHouse data. Try: <em>"Which service has the highest error rate?"</em> or
+              <em>"What's the total cost this week?"</em> or <em>"How many unique users visited in the last 24
+                hours?"</em>
+            </div>
+          </div>
+          <div class="chat-input-row">
+            <input id="chatInput" type="text" class="chat-input" placeholder="Ask a question about the data…"
+              onkeydown="if(event.key==='Enter') sendChatMessage()" />
+            <button class="btn btn-primary" onclick="sendChatMessage()" id="chatSendBtn">Ask →</button>
+          </div>
+        </div>
+
+        <!-- Suggested questions -->
+        <div class="chat-suggestions">
+          <span class="suggestion-label">Try:</span>
+          <button class="suggestion-chip"
+            onclick="askSuggested('Which service has the highest error rate in the last 24 hours?')">
+            Which service has the highest error rate?
+          </button>
+          <button class="suggestion-chip" onclick="askSuggested('What is the total API cost this week by team?')">
+            Total API cost by team this week
+          </button>
+          <button class="suggestion-chip"
+            onclick="askSuggested('How many unique users were active in the last 24 hours?')">
+            Unique users last 24h
+          </button>
+          <button class="suggestion-chip"
+            onclick="askSuggested('Which 5 services had the highest average response time?')">
+            Slowest services by P95 latency
+          </button>
+        </div>
+      </div>
+
+      <!-- ── J2: AI INSIGHTS ──────────────────────────────────────────────── -->
+      <div id="ai-section-insights" class="ai-section" style="display:none">
+        <div class="section-title">J2 — AI Insights Agent</div>
+        <div class="ai-pipeline-hint glass">
+          <span class="pipe-step">① Agent decides which queries to run</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">② Gathers data from ClickHouse (tool calls)</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">③ LLM analyzes aggregated data</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">④ Structured JSON insights</span>
+        </div>
+
+        <div class="insights-controls glass">
+          <div class="form-group">
+            <label>Analyze section</label>
+            <select id="insightsSection">
+              <option value="all">All Data (Telemetry + Logs + Costs)</option>
+              <option value="telemetry">Telemetry Only</option>
+              <option value="logging">Logging Only</option>
+              <option value="costs">Costs Only</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="runInsightsAgent()" id="insightsRunBtn">
+            🤖 Run Insights Agent
+          </button>
+        </div>
+
+        <div id="insightsResult" class="insights-result"></div>
+      </div>
+
+      <!-- ── J3: RAG ──────────────────────────────────────────────────────── -->
+      <div id="ai-section-rag" class="ai-section" style="display:none">
+        <div class="section-title">J3 — RAG (Retrieval Augmented Generation)</div>
+        <div class="ai-pipeline-hint glass">
+          <span class="pipe-step">① Embed your question (nomic-embed-text)</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">② cosineDistance() in ClickHouse</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">③ Top-K relevant chunks</span>
+          <span class="pipe-arrow">→</span>
+          <span class="pipe-step">④ LLM answers from context</span>
+        </div>
+
+        <div class="rag-info glass"
+          style="font-size:12.5px;color:var(--text2);padding:12px 16px;margin-bottom:16px;border-radius:var(--radius)">
+          📦 Knowledge base stored in <code>demo.knowledge_embeddings</code> — <code>Array(Float32)</code> column,
+          searched with <code>cosineDistance(embedding, questionVector)</code>. No Pinecone, no Chroma — just
+          ClickHouse.
+        </div>
+
+        <div class="rag-search-row glass"
+          style="display:flex;gap:12px;padding:16px;border-radius:var(--radius);margin-bottom:16px">
+          <input id="ragInput" type="text" class="chat-input"
+            placeholder="Ask about ClickHouse or AI patterns… e.g. 'How does MergeTree work?'" style="flex:1"
+            onkeydown="if(event.key==='Enter') runRAGQuery()" />
+          <button class="btn btn-primary" onclick="runRAGQuery()" id="ragBtn">🔍 Search</button>
+        </div>
+
+        <div class="chat-suggestions" style="margin-bottom:20px">
+          <span class="suggestion-label">Try:</span>
+          <button class="suggestion-chip"
+            onclick="askRAG('How does MergeTree handle inserts and background merges?')">How does MergeTree
+            work?</button>
+          <button class="suggestion-chip"
+            onclick="askRAG('What is the difference between sharding and replication?')">Sharding vs
+            replication</button>
+          <button class="suggestion-chip" onclick="askRAG('How do I implement RAG with a database?')">How to implement
+            RAG?</button>
+          <button class="suggestion-chip" onclick="askRAG('What is an AI agent and how does it call tools?')">What is an
+            AI agent?</button>
+        </div>
+
+        <div id="ragResult" class="rag-result"></div>
+
+        <!-- Index a custom document -->
+        <div class="section-title" style="margin-top:24px">Index Your Own Document</div>
+        <div class="glass" style="padding:18px;border-radius:var(--radius)">
+          <div class="form-row" style="flex-wrap:wrap;gap:12px;margin-bottom:12px">
+            <div class="form-group">
+              <label>Source</label>
+              <input id="ragIndexSource" type="text" value="my-docs" style="width:120px" />
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <input id="ragIndexCategory" type="text" value="architecture" style="width:130px" />
+            </div>
+          </div>
+          <textarea id="ragIndexText" rows="4"
+            style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text1);border-radius:8px;padding:10px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"
+            placeholder="Paste any text here to add it to the ClickHouse knowledge base…"></textarea>
+          <button class="btn btn-sm" style="margin-top:10px" onclick="indexDocument()">📎 Embed & Index into
+            ClickHouse</button>
+          <div id="ragIndexResult" style="margin-top:10px;font-size:13px"></div>
+        </div>
+      </div>
+
     </section>
 
   </main>

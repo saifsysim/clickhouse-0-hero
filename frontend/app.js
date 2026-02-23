@@ -19,6 +19,7 @@ function switchTab(tab, btn) {
     if (tab === 'costs') loadCosts();
     if (tab === 'cluster') loadCluster();
     if (tab === 'query') loadPlaygroundTables();
+    if (tab === 'ai') checkAIStatus();
 }
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
@@ -765,9 +766,247 @@ async function loadReplStatus() {
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════════════
+// AI ASSISTANT
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Show one AI sub-section (chat / insights / rag)
+function showAISection(name) {
+    ['chat', 'insights', 'rag'].forEach(s => {
+        document.getElementById(`ai-section-${s}`).style.display = s === name ? '' : 'none';
+    });
+}
+
+// Check Ollama health + update UI badges
+async function checkAIStatus() {
+    const dot = document.getElementById('ai-status-dot');
+    const hdr = document.getElementById('ai-header-status');
+    const banner = document.getElementById('ai-status-banner');
+    try {
+        const r = await fetch(`${API}/ai/status`);
+        const d = await r.json();
+        if (d.ollama === 'running' && d.llmReady && d.embedReady) {
+            dot.className = 'ai-badge ready';
+            hdr.textContent = `✓ Ollama running · ${d.models.join(', ')}`;
+            banner.style.display = 'none';
+        } else if (d.ollama === 'running') {
+            dot.className = 'ai-badge';
+            const missing = [!d.llmReady && 'llama3.2', !d.embedReady && 'nomic-embed-text'].filter(Boolean);
+            hdr.textContent = `⚠ Ollama running, missing: ${missing.join(', ')}`;
+            banner.className = 'ai-status-banner glass error';
+            banner.style.display = '';
+            banner.textContent = `Run: ollama pull ${missing.join(' && ollama pull ')}`;
+        } else {
+            throw new Error('Ollama not running');
+        }
+    } catch {
+        dot.className = 'ai-badge error';
+        hdr.textContent = '✗ Ollama offline';
+        banner.className = 'ai-status-banner glass error';
+        banner.style.display = '';
+        banner.innerHTML = `⚠️ Ollama is not running. Start it: <code>ollama serve</code> — then pull models: <code>ollama pull llama3.2 && ollama pull nomic-embed-text</code>`;
+    }
+}
+
+// ─── J1: Text-to-SQL Chat ─────────────────────────────────────────────────────
+function appendChatMsg(cls, html) {
+    const msgs = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = `chat-msg ${cls}`;
+    div.innerHTML = html;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return div;
+}
+
+async function sendChatMessage() {
+    const inp = document.getElementById('chatInput');
+    const btn = document.getElementById('chatSendBtn');
+    const q = inp.value.trim();
+    if (!q) return;
+
+    inp.value = '';
+    inp.disabled = true;
+    btn.disabled = true;
+    btn.textContent = '⏳';
+
+    appendChatMsg('user', escHtml(q));
+    const thinking = appendChatMsg('thinking', 'Generating SQL…');
+
+    try {
+        const r = await fetch(`${API}/ai/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: q }),
+        });
+        const d = await r.json();
+        thinking.remove();
+
+        if (d.error) {
+            appendChatMsg('assistant', `<div class="chat-answer" style="color:var(--red)">❌ ${escHtml(d.error)}</div>`);
+            return;
+        }
+
+        const sqlId = `sql-${Date.now()}`;
+        appendChatMsg('assistant', `
+            <div class="chat-answer">${escHtml(d.answer)}</div>
+            <div class="chat-sql-reveal" onclick="toggle('${sqlId}')">▸ Show generated SQL &amp; ${d.rowCount} result${d.rowCount !== 1 ? 's' : ''}</div>
+            <div class="chat-sql-block" id="${sqlId}">${escHtml(d.sql)}</div>
+        `);
+    } catch (e) {
+        thinking.remove();
+        appendChatMsg('assistant', `<div class="chat-answer" style="color:var(--red)">❌ Network error: ${escHtml(e.message)}</div>`);
+    } finally {
+        inp.disabled = false;
+        btn.disabled = false;
+        btn.textContent = 'Ask →';
+        inp.focus();
+    }
+}
+
+function toggle(id) {
+    const el = document.getElementById(id);
+    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+}
+
+function askSuggested(q) {
+    document.getElementById('chatInput').value = q;
+    sendChatMessage();
+}
+
+// ─── J2: AI Insights Agent ────────────────────────────────────────────────────
+async function runInsightsAgent() {
+    const btn = document.getElementById('insightsRunBtn');
+    const section = document.getElementById('insightsSection').value;
+    const el = document.getElementById('insightsResult');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Analyzing data…';
+    el.innerHTML = '<div class="insight-card info"><div class="insight-detail">Running diagnostic queries across all tables, then asking the LLM to find patterns…</div></div>';
+
+    try {
+        const r = await fetch(`${API}/ai/insights?section=${section}`);
+        const d = await r.json();
+
+        if (d.error) { el.innerHTML = `<div class="insight-card critical"><div class="insight-detail">❌ ${escHtml(d.error)}</div></div>`; return; }
+
+        const icons = { critical: '🔴', warning: '🟡', info: '🔵' };
+        el.innerHTML = (d.insights || []).map(i => `
+            <div class="insight-card ${i.severity}">
+                <div class="insight-title">
+                    ${icons[i.severity] || '·'}
+                    ${escHtml(i.title)}
+                    <span class="insight-severity severity-${i.severity}">${i.severity}</span>
+                </div>
+                <div class="insight-detail">${escHtml(i.detail)}</div>
+                ${i.recommendation ? `<div class="insight-rec">${escHtml(i.recommendation)}</div>` : ''}
+            </div>
+        `).join('');
+
+        if (!d.insights?.length) el.innerHTML = '<div class="insight-card info"><div class="insight-detail">No insights returned. Try a different section.</div></div>';
+    } catch (e) {
+        el.innerHTML = `<div class="insight-card critical"><div class="insight-detail">❌ ${escHtml(e.message)}</div></div>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 Run Insights Agent';
+    }
+}
+
+// ─── J3: RAG ─────────────────────────────────────────────────────────────────
+async function runRAGQuery() {
+    const q = document.getElementById('ragInput').value.trim();
+    const btn = document.getElementById('ragBtn');
+    const el = document.getElementById('ragResult');
+    if (!q) return;
+
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    el.innerHTML = '<div class="rag-answer-card"><div class="insight-detail">Embedding question → cosineDistance search → retrieving context…</div></div>';
+
+    try {
+        const r = await fetch(`${API}/ai/rag`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: q }),
+        });
+        const d = await r.json();
+
+        if (d.error) { el.innerHTML = `<div class="rag-answer-card" style="color:var(--red)">❌ ${escHtml(d.error)}</div>`; return; }
+
+        el.innerHTML = `
+            <div class="rag-answer-card">
+                <div class="rag-answer-text">${escHtml(d.answer)}</div>
+                <div class="rag-sources">📦 Sources: ${(d.sources || []).map(s => `<code>${s}</code>`).join(', ') || 'none'}</div>
+                <div class="section-title" style="margin-top:12px;margin-bottom:8px">Retrieved Chunks (cosineDistance)</div>
+                <div class="rag-chunks">
+                    ${(d.retrievedChunks || []).map((c, i) => `
+                        <div class="rag-chunk">
+                            <div class="rag-chunk-meta">
+                                <span>[${i + 1}] ${c.source}/${c.category}</span>
+                                <span>distance: ${c.distance}</span>
+                            </div>
+                            ${escHtml(c.content)}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        el.innerHTML = `<div class="rag-answer-card" style="color:var(--red)">❌ ${escHtml(e.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Search';
+    }
+}
+
+function askRAG(q) {
+    document.getElementById('ragInput').value = q;
+    runRAGQuery();
+}
+
+async function indexDocument() {
+    const source = document.getElementById('ragIndexSource').value.trim();
+    const category = document.getElementById('ragIndexCategory').value.trim();
+    const text = document.getElementById('ragIndexText').value.trim();
+    const el = document.getElementById('ragIndexResult');
+    if (!text) { el.style.color = 'var(--red)'; el.textContent = 'Please enter some text to index.'; return; }
+
+    el.style.color = 'var(--text3)';
+    el.textContent = '⏳ Embedding and indexing into ClickHouse…';
+    try {
+        const r = await fetch(`${API}/ai/rag/index`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source, category, text }),
+        });
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        el.style.color = 'var(--green)';
+        el.textContent = `✅ Indexed ${d.chunksIndexed} chunk(s) into demo.knowledge_embeddings. Try searching for it above!`;
+        document.getElementById('ragIndexText').value = '';
+    } catch (e) {
+        el.style.color = 'var(--red)';
+        el.textContent = `❌ ${e.message}`;
+    }
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 checkHealth();
 setInterval(checkHealth, 30_000);
+
+// Poll AI status dot every 60s when Ollama might still be starting
+setTimeout(async () => {
+    const dot = document.getElementById('ai-status-dot');
+    if (!dot?.classList.contains('ready')) {
+        const r = await fetch(`${API}/ai/status`).catch(() => null);
+        if (r?.ok) {
+            const d = await r.json();
+            if (d.llmReady && d.embedReady) {
+                dot.className = 'ai-badge ready';
+            }
+        }
+    }
+}, 5000);
 
 // Keyboard shortcut: Ctrl/Cmd+Enter to run query
 document.addEventListener('keydown', e => {
