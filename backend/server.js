@@ -570,6 +570,567 @@ app.post('/api/cluster/replicate-demo', async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ─── 13 MISTAKES: Live Demo Endpoints ────────────────────────────────────────
+
+// #01 – Too Many Parts: show live part counts per table
+app.get('/api/mistakes/parts', async (req, res) => {
+  try {
+    const result = await ch.query({
+      query: `
+        SELECT
+          table,
+          count()                              AS active_parts,
+          sum(rows)                            AS total_rows,
+          formatReadableSize(sum(data_compressed_bytes)) AS compressed_size,
+          max(modification_time)               AS last_modified
+        FROM system.parts
+        WHERE active AND database = 'demo'
+        GROUP BY table
+        ORDER BY active_parts DESC
+      `,
+      format: 'JSONEachRow',
+    });
+    const rows = await result.json();
+    res.json({ rows, tip: 'Healthy: < 300 parts per table. Warning: > 1000. Critical: > 3000.' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// #06 – Dedup Surprise: insert same block twice, prove count stays same
+app.post('/api/mistakes/dedup-demo', async (req, res) => {
+  try {
+    const tag = `dedup-test-${Date.now()}`;
+    const block = [
+      { timestamp: '2024-01-01 00:00:00', service: 'dedup-demo', event_type: 'test', user_id: tag, properties: '{}', duration_ms: 1 },
+      { timestamp: '2024-01-01 00:00:01', service: 'dedup-demo', event_type: 'test', user_id: tag, properties: '{}', duration_ms: 2 },
+      { timestamp: '2024-01-01 00:00:02', service: 'dedup-demo', event_type: 'test', user_id: tag, properties: '{}', duration_ms: 3 },
+    ];
+
+    // Insert #1
+    await ch.insert({ table: 'telemetry_events', values: block, format: 'JSONEachRow' });
+    const after1 = await ch.query({
+      query: `SELECT count() AS cnt FROM telemetry_events WHERE user_id = '${tag}'`,
+      format: 'JSONEachRow',
+    });
+    const count1 = (await after1.json())[0]?.cnt;
+
+    // Insert #2 — identical block
+    await ch.insert({ table: 'telemetry_events', values: block, format: 'JSONEachRow' });
+    const after2 = await ch.query({
+      query: `SELECT count() AS cnt FROM telemetry_events WHERE user_id = '${tag}'`,
+      format: 'JSONEachRow',
+    });
+    const count2 = (await after2.json())[0]?.cnt;
+
+    // Cleanup (lightweight delete)
+    await ch.command({ query: `DELETE FROM telemetry_events WHERE user_id = '${tag}'` });
+
+    const deduplicated = Number(count1) === Number(count2);
+    res.json({
+      blockSize: block.length,
+      countAfterInsert1: Number(count1),
+      countAfterInsert2: Number(count2),
+      deduplicated,
+      explanation: deduplicated
+        ? `ClickHouse saw the same block hash twice and silently ignored the second insert. ${count1} rows inserted once = ${count2} rows after two inserts.`
+        : `Deduplication window may be disabled on this non-replicated table. Got ${count2} rows after 2 inserts of ${block.length} rows each.`,
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// #07 – Primary Key: compare EXPLAIN for good vs bad column ordering
+app.get('/api/mistakes/pk-explain', async (req, res) => {
+  try {
+    const [badExplain, goodExplain, badResult, goodResult] = await Promise.all([
+      // Bad: filtering on user_id — NOT in primary key (service, event_type, timestamp)
+      ch.query({
+        query: `EXPLAIN indexes=1
+          SELECT count() FROM telemetry_events WHERE user_id = 'user-42'`,
+        format: 'JSONEachRow',
+      }),
+      // Good: filtering on service — IS the first column of ORDER BY
+      ch.query({
+        query: `EXPLAIN indexes=1
+          SELECT count() FROM telemetry_events WHERE service = 'frontend'`,
+        format: 'JSONEachRow',
+      }),
+      // Run both to get actual timing
+      ch.query({
+        query: `SELECT count() AS cnt FROM telemetry_events WHERE user_id = 'user-42'`,
+        format: 'JSONEachRow',
+      }),
+      ch.query({
+        query: `SELECT count() AS cnt FROM telemetry_events WHERE service = 'frontend'`,
+        format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({
+      bad: {
+        filter: "WHERE user_id = 'user-42'  (NOT in primary key)",
+        explain: await badExplain.json(),
+        result: (await badResult.json())[0],
+      },
+      good: {
+        filter: "WHERE service = 'frontend'  (1st column of ORDER BY)",
+        explain: await goodExplain.json(),
+        result: (await goodResult.json())[0],
+      },
+      primaryKey: 'ORDER BY (service, event_type, timestamp)',
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// #09 – LIMIT short-circuit: same GROUP BY LIMIT 1 with and without optimization
+app.get('/api/mistakes/limit-demo', async (req, res) => {
+  try {
+    const t0slow = Date.now();
+    const slowResult = await ch.query({
+      query: `
+        SELECT service, event_type, count() AS cnt
+        FROM telemetry_events
+        GROUP BY service, event_type
+        ORDER BY service
+        LIMIT 1
+      `,
+      format: 'JSONEachRow',
+    });
+    const slowRows = await slowResult.json();
+    const slowMs = Date.now() - t0slow;
+
+    const t0fast = Date.now();
+    const fastResult = await ch.query({
+      query: `
+        SELECT service, event_type, count() AS cnt
+        FROM telemetry_events
+        GROUP BY service, event_type
+        ORDER BY service
+        LIMIT 1
+        SETTINGS optimize_aggregation_in_order = 1
+      `,
+      format: 'JSONEachRow',
+    });
+    const fastRows = await fastResult.json();
+    const fastMs = Date.now() - t0fast;
+
+    res.json({
+      slow: { ms: slowMs, row: slowRows[0], setting: 'default (optimize_aggregation_in_order = 0)' },
+      fast: { ms: fastMs, row: fastRows[0], setting: 'optimize_aggregation_in_order = 1' },
+      speedupMs: slowMs - fastMs,
+      speedupPct: Math.round((1 - fastMs / slowMs) * 100),
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// #05 – Nullable cost: show real column sizes from system.columns
+app.get('/api/mistakes/nullable-cost', async (req, res) => {
+  try {
+    const result = await ch.query({
+      query: `
+        SELECT
+          table,
+          name,
+          type,
+          data_compressed_bytes,
+          data_uncompressed_bytes,
+          formatReadableSize(data_compressed_bytes)   AS compressed,
+          formatReadableSize(data_uncompressed_bytes) AS uncompressed,
+          round(data_uncompressed_bytes / greatest(data_compressed_bytes,1), 2) AS compression_ratio
+        FROM system.columns
+        WHERE database = 'demo'
+          AND table IN ('telemetry_events', 'app_logs', 'cost_usage')
+        ORDER BY table, data_compressed_bytes DESC
+      `,
+      format: 'JSONEachRow',
+    });
+    const rows = await result.json();
+    // Categorise: Nullable types cost more storage
+    const withTypes = rows.map(r => ({
+      ...r,
+      isNullable: r.type.startsWith('Nullable'),
+      isLowCardinality: r.type.startsWith('LowCardinality'),
+    }));
+    res.json({
+      columns: withTypes,
+      tip: 'None of our demo tables use Nullable — that\'s intentional. LowCardinality columns compress dramatically better than plain String.',
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// #11 – Memory: show heaviest recent queries from system.query_log
+app.get('/api/mistakes/query-memory', async (req, res) => {
+  try {
+    const result = await ch.query({
+      query: `
+        SELECT
+          substring(query, 1, 80)          AS query_preview,
+          round(memory_usage / 1048576, 1) AS memory_mb,
+          read_rows,
+          read_bytes,
+          query_duration_ms,
+          type
+        FROM system.query_log
+        WHERE event_time >= now() - INTERVAL 10 MINUTE
+          AND type = 'QueryFinish'
+          AND memory_usage > 0
+        ORDER BY memory_usage DESC
+        LIMIT 10
+      `,
+      format: 'JSONEachRow',
+    });
+    const rows = await result.json();
+
+    // Also run a live heavy query so there's something to show
+    await ch.query({
+      query: `SELECT user_id, count() AS c, uniq(service) AS u FROM telemetry_events GROUP BY user_id ORDER BY c DESC LIMIT 100`,
+      format: 'JSONEachRow',
+    }).then(r => r.json()).catch(() => { });
+
+    const result2 = await ch.query({
+      query: `
+        SELECT
+          substring(query, 1, 80)          AS query_preview,
+          round(memory_usage / 1048576, 1) AS memory_mb,
+          read_rows,
+          formatReadableSize(read_bytes)   AS read_size,
+          query_duration_ms                AS duration_ms,
+          type
+        FROM system.query_log
+        WHERE event_time >= now() - INTERVAL 5 MINUTE
+          AND type = 'QueryFinish'
+          AND memory_usage > 0
+        ORDER BY memory_usage DESC
+        LIMIT 10
+      `,
+      format: 'JSONEachRow',
+    });
+
+    res.json({ rows: await result2.json() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// #12 – Materialized Views: show MV status and what it captured
+app.get('/api/mistakes/mv-status', async (req, res) => {
+  try {
+    const [mvList, aggSample, sourceSample] = await Promise.all([
+      ch.query({
+        query: `
+          SELECT name, engine, total_rows,
+                 formatReadableSize(total_bytes) AS size
+          FROM system.tables
+          WHERE database = 'demo'
+            AND (engine LIKE '%View%' OR engine LIKE '%Aggregating%')
+          ORDER BY name
+        `,
+        format: 'JSONEachRow',
+      }),
+      ch.query({
+        query: `
+          SELECT
+            service,
+            event_type,
+            countMerge(event_count)          AS total_events,
+            uniqMerge(unique_users)           AS unique_users,
+            round(quantileMerge(0.95)(p95_duration)) AS p95_ms
+          FROM telemetry_hourly_agg
+          GROUP BY service, event_type
+          ORDER BY total_events DESC
+          LIMIT 8
+        `,
+        format: 'JSONEachRow',
+      }),
+      ch.query({
+        query: `
+          SELECT service, event_type, count() AS direct_count
+          FROM telemetry_events
+          GROUP BY service, event_type
+          ORDER BY direct_count DESC
+          LIMIT 8
+        `,
+        format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({
+      views: await mvList.json(),
+      mvAggregated: await aggSample.json(),
+      sourceCount: await sourceSample.json(),
+      note: 'The MV only captured rows that were INSERTed after the view was created. Backfill via INSERT INTO ... SELECT from source.',
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 13 MISTAKES v2: Wrong / Fixed / Reset endpoints ─────────────────────────
+
+// ── #01 Too Many Parts ────────────────────────────────────────────────────────
+app.post('/api/mistakes/parts-wrong', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_parts_demo` });
+    await ch.command({
+      query: `
+      CREATE TABLE demo.mistake_parts_demo (id UInt32, val String)
+      ENGINE = MergeTree() ORDER BY id
+      SETTINGS min_bytes_for_wide_part = 0, min_rows_for_wide_part = 0
+    ` });
+    await ch.command({ query: `SYSTEM STOP MERGES demo.mistake_parts_demo` });
+    const ROWS = 15;
+    const t0 = Date.now();
+    for (let i = 1; i <= ROWS; i++) {
+      await ch.command({ query: `INSERT INTO demo.mistake_parts_demo VALUES (${i}, 'row-${i}')` });
+    }
+    const elapsed = Date.now() - t0;
+    const r = await ch.query({
+      query: `SELECT count() AS parts, sum(rows) AS total_rows FROM system.parts WHERE active AND database='demo' AND table='mistake_parts_demo'`,
+      format: 'JSONEachRow',
+    });
+    const s = (await r.json())[0];
+    res.json({
+      approach: `${ROWS} individual INSERT statements`, parts: Number(s.parts), totalRows: Number(s.total_rows), elapsedMs: elapsed,
+      warning: `⚠️ ${s.parts} parts from just ${ROWS} rows! At 100k inserts/day this becomes 100,000 parts — ClickHouse will refuse further inserts.`
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/parts-fixed', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_parts_good` });
+    await ch.command({
+      query: `
+      CREATE TABLE demo.mistake_parts_good (id UInt32, val String)
+      ENGINE = MergeTree() ORDER BY id
+      SETTINGS min_bytes_for_wide_part = 0, min_rows_for_wide_part = 0
+    ` });
+    const ROWS = 15;
+    const t0 = Date.now();
+    const vals = Array.from({ length: ROWS }, (_, i) => `(${i + 1},'row-${i + 1}')`).join(',');
+    await ch.command({ query: `INSERT INTO demo.mistake_parts_good VALUES ${vals}` });
+    const elapsed = Date.now() - t0;
+    const r = await ch.query({
+      query: `SELECT count() AS parts, sum(rows) AS total_rows FROM system.parts WHERE active AND database='demo' AND table='mistake_parts_good'`,
+      format: 'JSONEachRow',
+    });
+    const s = (await r.json())[0];
+    res.json({
+      approach: `1 batch INSERT — all ${ROWS} rows at once`, parts: Number(s.parts), totalRows: Number(s.total_rows), elapsedMs: elapsed,
+      tip: `✅ ${s.parts} part from ${ROWS} rows. Rule: batch 10k–100k rows per INSERT. Use async_insert=1 for streaming pipelines.`
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/parts-reset', async (req, res) => {
+  try {
+    await ch.command({ query: `SYSTEM START MERGES demo.mistake_parts_demo` }).catch(() => { });
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_parts_demo` });
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_parts_good` });
+    res.json({ ok: true, message: 'Dropped mistake_parts_demo and mistake_parts_good tables.' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── #05 Nullable vs DEFAULT ───────────────────────────────────────────────────
+app.post('/api/mistakes/nullable-wrong', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_nullable_bad` });
+    await ch.command({
+      query: `
+      CREATE TABLE demo.mistake_nullable_bad (id UInt32, email Nullable(String), country Nullable(String), age Nullable(Int32))
+      ENGINE = MergeTree() ORDER BY id
+    ` });
+    const ROWS = 2000;
+    const vals = Array.from({ length: ROWS }, (_, i) => {
+      const n = i % 4 === 0;
+      return `(${i + 1},${n ? 'NULL' : `'user${i}@test.com'`},${n ? 'NULL' : `'US'`},${n ? 'NULL' : (i % 60 + 18)})`;
+    }).join(',');
+    await ch.command({ query: `INSERT INTO demo.mistake_nullable_bad VALUES ${vals}` });
+    await ch.command({ query: `OPTIMIZE TABLE demo.mistake_nullable_bad FINAL` });
+    const r = await ch.query({
+      query: `SELECT name, type, formatReadableSize(data_compressed_bytes) AS compressed, data_compressed_bytes AS raw_bytes FROM system.columns WHERE database='demo' AND table='mistake_nullable_bad' ORDER BY raw_bytes DESC`,
+      format: 'JSONEachRow',
+    });
+    const tot = await ch.query({ query: `SELECT formatReadableSize(sum(data_compressed_bytes)) AS total FROM system.columns WHERE database='demo' AND table='mistake_nullable_bad'`, format: 'JSONEachRow' });
+    res.json({ columns: await r.json(), totalCompressed: (await tot.json())[0].total, rows: ROWS, note: 'Each Nullable column requires a separate null-map bitmap file on disk.' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/nullable-fixed', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_nullable_good` });
+    await ch.command({
+      query: `
+      CREATE TABLE demo.mistake_nullable_good (id UInt32, email String DEFAULT '', country LowCardinality(String) DEFAULT 'unknown', age Int32 DEFAULT 0)
+      ENGINE = MergeTree() ORDER BY id
+    ` });
+    const ROWS = 2000;
+    const vals = Array.from({ length: ROWS }, (_, i) => {
+      const n = i % 4 === 0;
+      return `(${i + 1},'${n ? '' : (`user${i}@test.com`)}','${n ? 'unknown' : 'US'}',${n ? 0 : (i % 60 + 18)})`;
+    }).join(',');
+    await ch.command({ query: `INSERT INTO demo.mistake_nullable_good VALUES ${vals}` });
+    await ch.command({ query: `OPTIMIZE TABLE demo.mistake_nullable_good FINAL` });
+    const r = await ch.query({
+      query: `SELECT name, type, formatReadableSize(data_compressed_bytes) AS compressed, data_compressed_bytes AS raw_bytes FROM system.columns WHERE database='demo' AND table='mistake_nullable_good' ORDER BY raw_bytes DESC`,
+      format: 'JSONEachRow',
+    });
+    const tot = await ch.query({ query: `SELECT formatReadableSize(sum(data_compressed_bytes)) AS total FROM system.columns WHERE database='demo' AND table='mistake_nullable_good'`, format: 'JSONEachRow' });
+    res.json({ columns: await r.json(), totalCompressed: (await tot.json())[0].total, rows: ROWS, note: 'No null-map overhead. LowCardinality(String) compresses 3–10× better than plain String.' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/nullable-reset', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_nullable_bad` });
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_nullable_good` });
+    res.json({ ok: true, message: 'Dropped mistake_nullable_bad and mistake_nullable_good.' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── #06 Dedup Surprise ────────────────────────────────────────────────────────
+app.post('/api/mistakes/dedup-wrong', async (req, res) => {
+  try {
+    const tag = `dedup-wrong-${Date.now()}`;
+    const block = [
+      { timestamp: '2024-06-01 10:00:00', service: 'dedup-demo', event_type: 'checkout', user_id: tag, properties: '{}', duration_ms: 10 },
+      { timestamp: '2024-06-01 10:00:01', service: 'dedup-demo', event_type: 'checkout', user_id: tag, properties: '{}', duration_ms: 20 },
+      { timestamp: '2024-06-01 10:00:02', service: 'dedup-demo', event_type: 'checkout', user_id: tag, properties: '{}', duration_ms: 30 },
+    ];
+    await ch.insert({ table: 'telemetry_events', values: block, format: 'JSONEachRow' });
+    const c1 = Number(((await (await ch.query({ query: `SELECT count() AS cnt FROM telemetry_events WHERE user_id='${tag}'`, format: 'JSONEachRow' })).json())[0]?.cnt));
+    await ch.insert({ table: 'telemetry_events', values: block, format: 'JSONEachRow' }); // same block again (retry)
+    const c2 = Number(((await (await ch.query({ query: `SELECT count() AS cnt FROM telemetry_events WHERE user_id='${tag}'`, format: 'JSONEachRow' })).json())[0]?.cnt));
+    await ch.command({ query: `DELETE FROM telemetry_events WHERE user_id='${tag}'` });
+    res.json({
+      blockSize: block.length, afterInsert1: c1, afterInsert2: c2, duplicated: c2 > c1,
+      explanation: c2 > c1
+        ? `❌ You retried the same INSERT twice. Expected ${c1} rows — got ${c2}! Deduplication only works on REPLICATED tables (ReplicatedMergeTree) with a non-zero deduplication window.`
+        : `Dedup triggered (same block hash). This only works reliably with ReplicatedMergeTree.`
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/dedup-fixed', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_dedup_good` });
+    await ch.command({
+      query: `
+      CREATE TABLE demo.mistake_dedup_good (id UInt64, user String, payload String, ver UInt64)
+      ENGINE = ReplacingMergeTree(ver) ORDER BY id
+    ` });
+    await ch.command({ query: `INSERT INTO demo.mistake_dedup_good VALUES (1,'alice','v1-purchase',1),(2,'bob','v1-purchase',1),(3,'carol','v1-purchase',1)` });
+    await ch.command({ query: `INSERT INTO demo.mistake_dedup_good VALUES (1,'alice','v2-refund',2),(2,'bob','v2-refund',2)` }); // retry/update
+    const raw = await (await ch.query({ query: `SELECT id,user,payload,ver FROM demo.mistake_dedup_good ORDER BY id,ver`, format: 'JSONEachRow' })).json();
+    const deduped = await (await ch.query({ query: `SELECT id,user,payload,ver FROM demo.mistake_dedup_good FINAL ORDER BY id`, format: 'JSONEachRow' })).json();
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_dedup_good` });
+    res.json({
+      withoutFinal: raw, withFinal: deduped,
+      tip: 'ReplacingMergeTree keeps the highest ver row per key. SELECT FINAL forces dedup now. Without FINAL, old rows appear until background merge runs.'
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── #07 Primary Key ───────────────────────────────────────────────────────────
+app.post('/api/mistakes/pk-wrong', async (req, res) => {
+  try {
+    const t0 = Date.now();
+    const r = await ch.query({ query: `SELECT count() AS cnt FROM telemetry_events WHERE user_id = 'user-42'`, format: 'JSONEachRow' });
+    const elapsed = Date.now() - t0;
+    const ex = await ch.query({ query: `EXPLAIN indexes=1 SELECT count() FROM telemetry_events WHERE user_id = 'user-42'`, format: 'JSONEachRow' });
+    res.json({
+      query: `WHERE user_id = 'user-42'`, inPrimaryKey: false, resultCount: Number((await r.json())[0].cnt), elapsedMs: elapsed,
+      explain: (await ex.json()).map(r => Object.values(r).join(' ')).filter(s => s.trim()),
+      warning: `user_id is NOT in ORDER BY (service, event_type, timestamp). ClickHouse reads ALL granules — full table scan on ${(60000).toLocaleString()} rows.`
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/pk-fixed', async (req, res) => {
+  try {
+    const t0 = Date.now();
+    const r = await ch.query({ query: `SELECT count() AS cnt FROM telemetry_events WHERE service = 'frontend'`, format: 'JSONEachRow' });
+    const elapsed = Date.now() - t0;
+    const ex = await ch.query({ query: `EXPLAIN indexes=1 SELECT count() FROM telemetry_events WHERE service = 'frontend'`, format: 'JSONEachRow' });
+    res.json({
+      query: `WHERE service = 'frontend'`, inPrimaryKey: true, resultCount: Number((await r.json())[0].cnt), elapsedMs: elapsed,
+      explain: (await ex.json()).map(r => Object.values(r).join(' ')).filter(s => s.trim()),
+      tip: `service is the FIRST column of ORDER BY. ClickHouse skips granules that can't match — reads only a fraction of the table.`
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── #09 LIMIT short-circuit ───────────────────────────────────────────────────
+app.post('/api/mistakes/limit-wrong', async (req, res) => {
+  try {
+    const t0 = Date.now();
+    const r = await ch.query({ query: `SELECT service, event_type, count() AS cnt FROM telemetry_events GROUP BY service, event_type ORDER BY service LIMIT 1`, format: 'JSONEachRow' });
+    const elapsed = Date.now() - t0;
+    res.json({
+      setting: 'optimize_aggregation_in_order = 0 (default)', elapsedMs: elapsed, result: (await r.json())[0],
+      explanation: 'ClickHouse scans ALL rows, builds the complete aggregation hash table, THEN applies LIMIT 1. LIMIT only runs at the very end.'
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/limit-fixed', async (req, res) => {
+  try {
+    const t0 = Date.now();
+    const r = await ch.query({ query: `SELECT service, event_type, count() AS cnt FROM telemetry_events GROUP BY service, event_type ORDER BY service LIMIT 1 SETTINGS optimize_aggregation_in_order = 1`, format: 'JSONEachRow' });
+    const elapsed = Date.now() - t0;
+    res.json({
+      setting: 'optimize_aggregation_in_order = 1', elapsedMs: elapsed, result: (await r.json())[0],
+      tip: 'ORDER BY matches the table ORDER BY, so ClickHouse stops after filling 1 bucket. Dramatic speedup at scale (millions of rows).'
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── #11 Memory Limits ─────────────────────────────────────────────────────────
+app.post('/api/mistakes/memory-wrong', async (req, res) => {
+  try {
+    const t0 = Date.now();
+    await ch.query({ query: `SELECT user_id, count() AS c, groupArray(5)(service) AS svcs FROM telemetry_events GROUP BY user_id ORDER BY c DESC LIMIT 10`, format: 'JSONEachRow' }).then(r => r.json());
+    const elapsed = Date.now() - t0;
+    const log = await ch.query({ query: `SELECT round(memory_usage/1048576,2) AS mb, read_rows, query_duration_ms FROM system.query_log WHERE event_time >= now() - INTERVAL 30 SECOND AND type='QueryFinish' AND position(query,'groupArray')>0 ORDER BY event_time DESC LIMIT 1`, format: 'JSONEachRow' });
+    res.json({
+      setting: 'No memory limits set', elapsedMs: elapsed, queryLog: (await log.json())[0] || null,
+      warning: 'No guard rails: GROUP BY with groupArray() builds an in-memory array per key. On a table with millions of unique keys this OOMs ClickHouse.'
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/memory-fixed', async (req, res) => {
+  try {
+    const t0 = Date.now();
+    await ch.query({ query: `SELECT user_id, count() AS c, groupArray(5)(service) AS svcs FROM telemetry_events GROUP BY user_id ORDER BY c DESC LIMIT 10 SETTINGS max_bytes_before_external_group_by=100000000, max_memory_usage=500000000`, format: 'JSONEachRow' }).then(r => r.json());
+    const elapsed = Date.now() - t0;
+    const log = await ch.query({ query: `SELECT round(memory_usage/1048576,2) AS mb, read_rows, query_duration_ms FROM system.query_log WHERE event_time >= now() - INTERVAL 30 SECOND AND type='QueryFinish' AND position(query,'max_bytes_before_external_group_by')>0 ORDER BY event_time DESC LIMIT 1`, format: 'JSONEachRow' });
+    res.json({
+      setting: 'max_bytes_before_external_group_by=100MB + max_memory_usage=500MB', elapsedMs: elapsed, queryLog: (await log.json())[0] || null,
+      tip: 'When GROUP BY state exceeds 100MB, ClickHouse spills to disk instead of OOMing. Add max_memory_usage as a hard safety cap per query.'
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── #12 Materialized Views ────────────────────────────────────────────────────
+app.post('/api/mistakes/mv-wrong', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP VIEW IF EXISTS demo.mistake_mv_demo` });
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_mv_target` });
+    await ch.command({ query: `CREATE TABLE demo.mistake_mv_target (service String, total UInt64) ENGINE = SummingMergeTree() ORDER BY service` });
+    await ch.command({ query: `CREATE MATERIALIZED VIEW demo.mistake_mv_demo TO demo.mistake_mv_target AS SELECT service, count() AS total FROM telemetry_events GROUP BY service` });
+    const target = await ch.query({ query: `SELECT count() AS rows, sum(total) AS events FROM demo.mistake_mv_target`, format: 'JSONEachRow' });
+    const source = await ch.query({ query: `SELECT count() AS rows FROM telemetry_events`, format: 'JSONEachRow' });
+    const t = (await target.json())[0]; const s = (await source.json())[0];
+    res.json({
+      mvCreated: true, sourceRows: Number(s.rows), mvRows: Number(t.rows), mvEventSum: Number(t.events || 0),
+      problem: `The MV was created AFTER ${Number(s.rows).toLocaleString()} rows already existed in telemetry_events. It captured 0 of them! MVs only process new INSERT blocks going forward.`
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/mv-fixed', async (req, res) => {
+  try {
+    await ch.command({ query: `INSERT INTO demo.mistake_mv_target SELECT service, count() AS total FROM telemetry_events GROUP BY service` });
+    const r = await ch.query({ query: `SELECT service, sum(total) AS total FROM demo.mistake_mv_target GROUP BY service ORDER BY total DESC LIMIT 8`, format: 'JSONEachRow' });
+    const tot = await ch.query({ query: `SELECT sum(total) AS grand_total FROM demo.mistake_mv_target`, format: 'JSONEachRow' });
+    res.json({
+      backfilled: true, rows: await r.json(), grandTotal: Number((await tot.json())[0].grand_total),
+      tip: 'Backfill pattern: INSERT INTO mv_target SELECT ... FROM source WHERE [date range]. Now the MV has historical + all future data.'
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/mistakes/mv-reset', async (req, res) => {
+  try {
+    await ch.command({ query: `DROP VIEW IF EXISTS demo.mistake_mv_demo` });
+    await ch.command({ query: `DROP TABLE IF EXISTS demo.mistake_mv_target` });
+    res.json({ ok: true, message: 'Dropped mistake_mv_demo view and mistake_mv_target table. Ready to run again.' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ─── SERVER START ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🚀 ClickHouse Explorer API running on :${PORT}`));

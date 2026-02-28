@@ -1,6 +1,6 @@
 # ClickHouse Explorer 🚀
 
-> **A complete, interactive demo of ClickHouse** for developers who are new to it. Covers all major table engines and three real production use cases with live data & charts.
+> **A complete, interactive demo of ClickHouse** for developers who are new to it. Covers all major table engines, three real production use cases with live data & charts, and an interactive **13 Mistakes** learning guide where you run "wrong" vs "fixed" code against real data.
 
 ---
 
@@ -14,6 +14,29 @@
 | 📋 **Structured Logging** | TTL auto-expiry, full-text search, error rate dashboards |
 | 💰 **Cost & Usage** | SummingMergeTree auto-aggregation, budget alerts, per-team/service breakdown |
 | 🖥 **SQL Playground** | Live query editor with 9 pre-built example queries |
+| 🔥 **13 Mistakes** | Interactive "Run ❌ Wrong / ✅ Fixed" demos for the most common ClickHouse pitfalls |
+
+---
+
+## 🔥 Interactive 13 Mistakes Tab
+
+The **13 Mistakes** tab teaches the most common ClickHouse pitfalls through live, executable demos.  
+Seven of the thirteen mistakes have interactive panels with **three buttons**:
+
+| Button | Action |
+|---|---|
+| **▶ Run ❌ Wrong** | Executes the bad pattern against real sample data → red pane shows what goes wrong |
+| **▶ Run ✅ Fixed** | Executes the fix → green pane shows the improvement side-by-side |
+| **↺ Reset** | Drops any temporary tables so you can run the lesson again cleanly |
+
+**Examples of what you'll see live:**
+- `#01 Parts:` 15 individual INSERTs → **15 parts** on disk vs 1 batch → **1 part**
+- `#06 Dedup:` Retry same INSERT on MergeTree → **6 duplicates** vs ReplacingMergeTree + FINAL → **3 rows**
+- `#07 PK:` Filter on `user_id` (not in ORDER BY) → full granule scan vs filter on `service` → index skip
+- `#09 LIMIT:` Default GROUP BY LIMIT 1 → full table scan vs `optimize_aggregation_in_order=1` → early stop
+- `#12 MV:` MV created after data → **0 rows** captured vs backfill `INSERT INTO SELECT` → **60,000 events**
+
+📖 See **[MISTAKES.md](./MISTAKES.md)** for the full written guide with explanations, code samples, and links.
 
 ---
 
@@ -68,7 +91,9 @@ clickhouse-explorer/
 │   ├── index.html             # Single-page app
 │   ├── style.css              # Dark glassmorphism theme
 │   └── app.js                 # Chart.js + API integration
-└── start.sh                   # One-click startup script
+├── start.sh                   # One-click startup script
+├── MISTAKES.md                # Full 13 Mistakes written guide
+└── README.md
 ```
 
 ---
@@ -100,3 +125,32 @@ clickhouse-explorer/
 | `GET` | `/api/costs` | Cost & usage analytics |
 | `GET` | `/api/engines/*-demo` | Per-engine live results |
 | `GET` | `/api/system/info` | ClickHouse server info + query log |
+| `POST` | `/api/mistakes/:id-wrong` | Run the ❌ wrong pattern for mistake `id` |
+| `POST` | `/api/mistakes/:id-fixed` | Run the ✅ fixed pattern for mistake `id` |
+| `POST` | `/api/mistakes/:id-reset` | Drop temporary demo tables for mistake `id` |
+
+Mistake IDs: `parts`, `nullable`, `dedup`, `pk`, `limit`, `memory`, `mv`
+
+---
+
+## Data Seeded
+
+After running `seed.js`, your ClickHouse instance contains:
+
+| Table | Engine | Rows |
+|---|---|---|
+| `demo.telemetry_events` | MergeTree | 60,000 |
+| `demo.app_logs` | MergeTree + TTL | 100,000 |
+| `demo.cost_usage` | SummingMergeTree | 20,000 |
+| `demo.telemetry_hourly_agg` | AggregatingMergeTree | ~7,000 |
+| `demo.error_summary` | ReplacingMergeTree | ~70 |
+| `demo.budget_limits` | CollapsingMergeTree | 10 |
+
+---
+
+## Further Reading
+
+- 📖 [MISTAKES.md](./MISTAKES.md) — Full 13 Mistakes reference guide
+- 🔗 [ClickHouse blog: 13 common getting-started issues](https://clickhouse.com/blog/common-getting-started-issues-with-clickhouse)
+- 🔗 [Primary key & ORDER BY design guide](https://clickhouse.com/docs/en/optimize/sparse-primary-indexes)
+- 🔗 [Materialized Views deep dive](https://clickhouse.com/docs/en/guides/developer/cascading-materialized-views)

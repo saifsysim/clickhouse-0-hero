@@ -42,6 +42,16 @@
         </svg>
         Learning Guide
       </button>
+      <button class="nav-item mistakes-nav-item" data-tab="mistakes" onclick="switchTab('mistakes',this)"
+        id="mistakes-nav-btn">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+            stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+          <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        13 Mistakes
+      </button>
 
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
@@ -1086,7 +1096,8 @@
             <h3 class="guide-h3">Compression — The Secret Weapon</h3>
             <p class="guide-p">Columnar storage makes compression extremely effective. A column of
               <code>LowCardinality(String)</code> with values like <em>frontend, api-gateway, auth-service</em>
-              compresses to nearly nothing — because the same strings repeat millions of times.</p>
+              compresses to nearly nothing — because the same strings repeat millions of times.
+            </p>
             <div class="guide-code-block">-- ClickHouse typically achieves 5-20x compression
               -- Example: 100GB of raw logs → ~8GB on disk
 
@@ -1200,7 +1211,8 @@
               <div class="guide-lesson-num">Module 03</div>
               <h2 class="guide-lesson-title">Engine Variants</h2>
               <p class="guide-lesson-desc">All ClickHouse engines inherit from MergeTree and differ only in what happens
-                <em>during background merges</em>.</p>
+                <em>during background merges</em>.
+              </p>
               <div class="guide-tags">
                 <span class="tag">SummingMergeTree</span><span class="tag">AggregatingMergeTree</span><span
                   class="tag">ReplacingMergeTree</span><span class="tag">CollapsingMergeTree</span>
@@ -1216,7 +1228,8 @@
             <h3 class="guide-h3">SummingMergeTree — Auto-sum counters</h3>
             <p class="guide-p">During merge, rows with the same ORDER BY key are collapsed and their numeric columns are
               <strong>summed</strong>. Perfect for counters and accumulators that you'll always query with GROUP BY
-              anyway.</p>
+              anyway.
+            </p>
             <div class="guide-code-block">-- cost_usage uses SummingMergeTree
               ENGINE = SummingMergeTree((cost_usd, api_calls, tokens_used))
               ORDER BY (team, service, toDate(timestamp))
@@ -1573,6 +1586,903 @@
         </div><!-- end guide-main -->
       </div><!-- end guide-layout -->
     </section>
+
+    <!-- ─── 13 MISTAKES ──────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-mistakes">
+      <div class="page-header">
+        <h1>13 Common ClickHouse Mistakes</h1>
+        <p class="page-subtitle">
+          A curated breakdown of the most common pitfalls new ClickHouse users encounter —
+          what causes them, what goes wrong, and exactly how to fix them.
+          Based on the official <a href="https://clickhouse.com/blog/common-getting-started-issues-with-clickhouse"
+            target="_blank" class="guide-link">ClickHouse engineering blog</a>.
+        </p>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="mistakes-filter-bar glass">
+        <span class="mistakes-filter-label">Filter by category:</span>
+        <button class="mf-btn active" onclick="filterMistakes('all', this)">All 13</button>
+        <button class="mf-btn" onclick="filterMistakes('ingestion', this)">🚢 Ingestion</button>
+        <button class="mf-btn" onclick="filterMistakes('schema', this)">🗂 Schema</button>
+        <button class="mf-btn" onclick="filterMistakes('query', this)">🔍 Query</button>
+        <button class="mf-btn" onclick="filterMistakes('ops', this)">⚙️ Ops</button>
+        <button class="mf-btn" onclick="filterMistakes('views', this)">📐 Mat. Views</button>
+      </div>
+
+      <div class="mistakes-grid" id="mistakesGrid">
+
+        <!-- ① Too many parts -->
+        <div class="mistake-card glass" data-category="ingestion">
+          <div class="mistake-card-header">
+            <div class="mistake-num">01</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Too Many Parts</div>
+              <span class="mistake-badge badge-ingestion">🚢 Ingestion</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-symptom">
+              <span class="symptom-icon">🔴</span>
+              <code>DB::Exception: Too many parts (N in total)</code>
+            </div>
+
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Three common causes: <strong>(1) High-cardinality partition key</strong> — using
+                  <code>date_time_ms</code> as a partition key creates thousands of folders; parts in different
+                  partitions are never merged. <strong>(2) Many tiny inserts</strong> — every single INSERT creates a
+                  new part. <strong>(3) Too many materialized views</strong> — each MV adds part pressure on inserts.
+                </p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Queries slow down because more parts = more index files to evaluate. In extreme cases
+                  ClickHouse throws <code>Too Many Parts</code> and rejects further inserts. High part counts also cause
+                  slower startup and increased Keeper load in replicated setups.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="mistakes-compare">
+                  <div class="mc-panel mc-bad">
+                    <div class="mc-label">❌ Wrong — high-cardinality partition</div>
+                    <div class="guide-code-block">CREATE TABLE events (
+                      ts DateTime,
+                      service String
+                      ) ENGINE = MergeTree()
+                      -- BAD: millions of unique values!
+                      PARTITION BY toStartOfMinute(ts)
+                      ORDER BY (service, ts);</div>
+                  </div>
+                  <div class="mc-panel mc-good">
+                    <div class="mc-label">✅ Right — low-cardinality partition + batched inserts</div>
+                    <div class="guide-code-block">CREATE TABLE events (
+                      ts DateTime,
+                      service String
+                      ) ENGINE = MergeTree()
+                      -- GOOD: &lt; 1000 unique partition values
+                      PARTITION BY toYYYYMM(ts)
+                      ORDER BY (service, ts);
+
+                      -- Batch inserts: 10k–100k rows at a time
+                      -- OR use async inserts:
+                      INSERT INTO events SETTINGS
+                      async_insert = 1,
+                      wait_for_async_insert = 1
+                      VALUES (...);</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- LIVE DEMO #01 -->
+            <div class="live-demo-panel v2">
+              <div class="ldp-header">
+                <span class="ldp-icon">🔬</span>
+                <span class="ldp-title">Try it live — 15 individual INSERTs vs 1 batch INSERT</span>
+                <div class="ldp-btn-group">
+                  <button class="ldp-btn-wrong" onclick="runWrong('parts', this)">▶ Run ❌ Wrong</button>
+                  <button class="ldp-btn-fixed" onclick="runFixed('parts', this)">▶ Run ✅ Fixed</button>
+                  <button class="ldp-btn-reset" onclick="runReset('parts', this)">↺ Reset</button>
+                </div>
+              </div>
+              <div class="ldp-split" id="split-parts">
+                <div class="ldp-wrong-pane" id="wrong-parts">
+                  <div class="ldp-pane-hint">Click ▶ Run ❌ Wrong to see the mistake</div>
+                </div>
+                <div class="ldp-fixed-pane" id="fixed-parts">
+                  <div class="ldp-pane-hint">Click ▶ Run ✅ Fixed to see the solution</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ② Going horizontal too early -->
+        <div class="mistake-card glass" data-category="ops">
+          <div class="mistake-card-header">
+            <div class="mistake-num">02</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Going Horizontal Too Early</div>
+              <span class="mistake-badge badge-ops">⚙️ Ops</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">New users immediately deploy dozens of ClickHouse nodes on Kubernetes, expecting
+                  horizontal scaling to be the answer — just like with stateless services.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Unnecessary operational complexity, higher costs, and potentially <em>worse</em>
+                  query performance due to JOIN data being shuffled over the network. ClickHouse is designed to saturate
+                  a single large machine (hundreds of cores, TBs of RAM).</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="guide-callout guide-callout--info">
+                  <div class="guide-callout-label">💡 Scale Vertically First</div>
+                  ClickHouse parallelizes every query stage across all CPU cores by default
+                  (<code>max_threads = number of cores</code>). A single node with 64 cores and 512 GB RAM will
+                  comfortably handle billions of rows. Only add nodes for <strong>redundancy</strong> (2 replicas) or
+                  when a single machine is genuinely exhausted.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ Mutation Pain -->
+        <div class="mistake-card glass" data-category="ops">
+          <div class="mistake-card-header">
+            <div class="mistake-num">03</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Mutation Pain</div>
+              <span class="mistake-badge badge-ops">⚙️ Ops</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Running frequent <code>ALTER TABLE ... UPDATE/DELETE</code> (classic mutations) to
+                  modify data — treating ClickHouse like an OLTP database where updates are routine.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Classic mutations <strong>rewrite entire data parts</strong>. They compete with
+                  background merges for CPU/IO. On replicated clusters, every replica applies the mutation
+                  independently. This cascades into the "Too Many Parts" problem, replication delays, and extremely high
+                  resource usage.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="mistakes-compare">
+                  <div class="mc-panel mc-bad">
+                    <div class="mc-label">❌ Slow — classic mutation rewrites full parts</div>
+                    <div class="guide-code-block">-- Rewrites ALL parts containing this service!
+                      ALTER TABLE events
+                      UPDATE status = 'archived'
+                      WHERE service = 'legacy-api';</div>
+                  </div>
+                  <div class="mc-panel mc-good">
+                    <div class="mc-label">✅ Fast — lightweight update (patch parts)</div>
+                    <div class="guide-code-block">-- Writes only a compact "patch part" for
+                      -- the changed column values. Up to 1000x faster!
+                      UPDATE events
+                      SET status = 'archived'
+                      WHERE service = 'legacy-api';
+
+                      -- For deletes, use lightweight DELETE:
+                      DELETE FROM events
+                      WHERE ts &lt; now() - INTERVAL 90 DAY;</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ④ Semi-structured data -->
+        <div class="mistake-card glass" data-category="schema">
+          <div class="mistake-card-header">
+            <div class="mistake-num">04</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Mishandling Semi-Structured Data</div>
+              <span class="mistake-badge badge-schema">🗂 Schema</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Storing JSON as a raw <code>String</code> column and parsing it at query time with
+                  <code>JSONExtractString()</code>, or blindly using <code>Map(String, String)</code> for everything.
+                  Both sacrifice compression and query speed.
+                </p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">String columns can't be compressed efficiently by ClickHouse's columnar codec.
+                  Parsing JSON at query time is slow and error-prone. Map columns store data as arrays, which is harder
+                  to index.s</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="mistakes-compare">
+                  <div class="mc-panel mc-bad">
+                    <div class="mc-label">❌ Slow — raw JSON string parsed at query time</div>
+                    <div class="guide-code-block">CREATE TABLE logs (
+                      ts DateTime,
+                      -- ❌ no compression, slow extraction
+                      raw_json String
+                      ) ENGINE = MergeTree()
+                      ORDER BY ts;
+
+                      -- Query must parse on every read:
+                      SELECT JSONExtractString(raw_json, 'user_id')
+                      FROM logs WHERE ts > now() - INTERVAL 1 DAY;</div>
+                  </div>
+                  <div class="mc-panel mc-good">
+                    <div class="mc-label">✅ Best — explicit columns (known schema)</div>
+                    <div class="guide-code-block">CREATE TABLE logs (
+                      ts DateTime,
+                      -- ✅ typed, compressed, indexed
+                      user_id String,
+                      level LowCardinality(String),
+                      message String
+                      ) ENGINE = MergeTree()
+                      ORDER BY (level, ts);
+
+                      -- OR for truly dynamic schemas, use JSON type:
+                      CREATE TABLE logs (
+                      ts DateTime,
+                      payload JSON -- native JSON type
+                      ) ENGINE = MergeTree() ORDER BY ts;</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑤ Overuse of Nullable -->
+        <div class="mistake-card glass" data-category="schema">
+          <div class="mistake-card-header">
+            <div class="mistake-num">05</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Overuse of Nullable</div>
+              <span class="mistake-badge badge-schema">🗂 Schema</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Defaulting to <code>Nullable(String)</code>, <code>Nullable(UInt64)</code>, etc. for
+                  any column that might be empty — just like in a traditional SQL database.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Every <code>Nullable</code> column creates a hidden secondary <code>UInt8</code>
+                  "null mask" column that must be read alongside the data column on every query. This doubles storage
+                  I/O for those columns and almost always hurts performance.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="mistakes-compare">
+                  <div class="mc-panel mc-bad">
+                    <div class="mc-label">❌ Nullable everywhere — extra hidden null-mask column</div>
+                    <div class="guide-code-block">CREATE TABLE users (
+                      id UInt64,
+                      email Nullable(String), -- ❌ extra null column
+                      age Nullable(UInt8), -- ❌ extra null column
+                      country Nullable(String) -- ❌ extra null column
+                      ) ENGINE = MergeTree()
+                      ORDER BY id;</div>
+                  </div>
+                  <div class="mc-panel mc-good">
+                    <div class="mc-label">✅ Use sentinel default values instead</div>
+                    <div class="guide-code-block">CREATE TABLE users (
+                      id UInt64,
+                      email String DEFAULT '', -- ✅ empty string = "null"
+                      age UInt8 DEFAULT 0, -- ✅ 0 = "unknown"
+                      country LowCardinality(String) DEFAULT ''
+                      ) ENGINE = MergeTree()
+                      ORDER BY id;
+
+                      -- Query: filter out sentinel values
+                      SELECT * FROM users WHERE email != '';</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- LIVE DEMO #05 -->
+            <div class="live-demo-panel v2">
+              <div class="ldp-header">
+                <span class="ldp-icon">🔬</span>
+                <span class="ldp-title">Try it live — Nullable(String) vs String DEFAULT '' storage cost</span>
+                <div class="ldp-btn-group">
+                  <button class="ldp-btn-wrong" onclick="runWrong('nullable', this)">▶ Run ❌ Wrong</button>
+                  <button class="ldp-btn-fixed" onclick="runFixed('nullable', this)">▶ Run ✅ Fixed</button>
+                  <button class="ldp-btn-reset" onclick="runReset('nullable', this)">↺ Reset</button>
+                </div>
+              </div>
+              <div class="ldp-split" id="split-nullable">
+                <div class="ldp-wrong-pane" id="wrong-nullable">
+                  <div class="ldp-pane-hint">Click ▶ Run ❌ Wrong to create a Nullable table with 2k rows</div>
+                </div>
+                <div class="ldp-fixed-pane" id="fixed-nullable">
+                  <div class="ldp-pane-hint">Click ▶ Run ✅ Fixed to compare with DEFAULT values</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ⑥ Insert-time deduplication surprise -->
+        <div class="mistake-card glass" data-category="ingestion">
+          <div class="mistake-card-header">
+            <div class="mistake-num">06</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Insert-Time Deduplication Surprise</div>
+              <span class="mistake-badge badge-ingestion">🚢 Ingestion</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-symptom">
+              <span class="symptom-icon">😮</span>
+              Inserted 8 rows twice … but SELECT only shows 4 rows!
+            </div>
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">On replicated tables (including ClickHouse Cloud), ClickHouse hashes each INSERT
+                  block. If the exact same block is submitted again (same rows, same order, same size), it is silently
+                  ignored. Users are surprised when retried inserts "disappear".</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Not a bug — it's intentional idempotency for safe insert retries. But if you expect
+                  duplicate rows (e.g., reprocessing events), this will silently drop them. The deduplication window is
+                  the last <strong>100 blocks</strong> by default (<code>replicated_deduplication_window = 100</code>).
+                </p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="guide-code-block">-- Understand the behavior:
+                  -- Block hash is stored in Keeper for last N blocks.
+                  -- Identical insert = same hash → silently deduplicated.
+
+                  -- To ALLOW duplicate data, change block sizes or
+                  -- add a random nonce column so hashes differ:
+                  INSERT INTO events SELECT *, rand() as nonce FROM ...;
+
+                  -- To DISABLE deduplication on non-replicated tables:
+                  CREATE TABLE events (...) ENGINE = MergeTree()
+                  ORDER BY ts
+                  SETTINGS non_replicated_deduplication_window = 0;
+
+                  -- Or check: how many blocks are being tracked?
+                  SELECT * FROM system.zookeeper
+                  WHERE path LIKE '/clickhouse/tables/%/blocks';</div>
+              </div>
+            </div>
+
+            <!-- LIVE DEMO #06 -->
+            <div class="live-demo-panel v2">
+              <div class="ldp-header">
+                <span class="ldp-icon">🔬</span>
+                <span class="ldp-title">Try it live — Retry inserts on non-replicated vs ReplacingMergeTree</span>
+                <div class="ldp-btn-group">
+                  <button class="ldp-btn-wrong" onclick="runWrong('dedup', this)">▶ Run ❌ Wrong</button>
+                  <button class="ldp-btn-fixed" onclick="runFixed('dedup', this)">▶ Run ✅ Fixed</button>
+                </div>
+              </div>
+              <div class="ldp-split" id="split-dedup">
+                <div class="ldp-wrong-pane" id="wrong-dedup">
+                  <div class="ldp-pane-hint">Click ▶ Run ❌ Wrong — inserts same block twice, counts the result</div>
+                </div>
+                <div class="ldp-fixed-pane" id="fixed-dedup">
+                  <div class="ldp-pane-hint">Click ▶ Run ✅ Fixed — shows ReplacingMergeTree + SELECT FINAL</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ⑦ Poor Primary Key Selection -->
+        <div class="mistake-card glass" data-category="schema">
+          <div class="mistake-card-header">
+            <div class="mistake-num">07</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Poor Primary Key Selection</div>
+              <span class="mistake-badge badge-schema">🗂 Schema</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Choosing a primary key based on OLTP instincts — putting a high-cardinality UUID
+                  first, or picking columns that don't match actual query filters. ClickHouse's sparse index is
+                  fundamentally different from a B-tree.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">A poorly ordered primary key means ClickHouse cannot skip granules efficiently → full
+                  table scans even for simple queries. It also hurts compression because ClickHouse compresses better
+                  when data is sorted by low-cardinality columns first.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="mistakes-compare">
+                  <div class="mc-panel mc-bad">
+                    <div class="mc-label">❌ UUID first — high cardinality, kills compression</div>
+                    <div class="guide-code-block">CREATE TABLE events (
+                      id UUID,
+                      service LowCardinality(String),
+                      ts DateTime,
+                      level LowCardinality(String)
+                      ) ENGINE = MergeTree()
+                      -- ❌ High-cardinality UUID first
+                      ORDER BY (id, service, ts);</div>
+                  </div>
+                  <div class="mc-panel mc-good">
+                    <div class="mc-label">✅ Low → high cardinality order = best compression + skipping</div>
+                    <div class="guide-code-block">CREATE TABLE events (
+                      id UUID,
+                      service LowCardinality(String), -- ~10 values
+                      level LowCardinality(String), -- ~5 values
+                      ts DateTime, -- millions of values
+                      user_id String -- billions of values
+                      ) ENGINE = MergeTree()
+                      -- ✅ Low cardinality first → best compression
+                      -- ✅ Match your WHERE clause columns
+                      ORDER BY (service, level, ts);
+
+                      -- Rule: put columns you filter on most in ORDER BY.
+                      -- Order by ascending cardinality within those.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- LIVE DEMO #07 -->
+            <div class="live-demo-panel v2">
+              <div class="ldp-header">
+                <span class="ldp-icon">🔬</span>
+                <span class="ldp-title">Try it live — EXPLAIN: WHERE user_id vs WHERE service (PK column)</span>
+                <div class="ldp-btn-group">
+                  <button class="ldp-btn-wrong" onclick="runWrong('pk', this)">▶ Run ❌ Wrong</button>
+                  <button class="ldp-btn-fixed" onclick="runFixed('pk', this)">▶ Run ✅ Fixed</button>
+                </div>
+              </div>
+              <div class="ldp-split" id="split-pk">
+                <div class="ldp-wrong-pane" id="wrong-pk">
+                  <div class="ldp-pane-hint">Filter on user_id — not in primary key → full scan</div>
+                </div>
+                <div class="ldp-fixed-pane" id="fixed-pk">
+                  <div class="ldp-pane-hint">Filter on service — first ORDER BY column → index skip</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ⑧ Overuse of skip indices -->
+        <div class="mistake-card glass" data-category="query">
+          <div class="mistake-card-header">
+            <div class="mistake-num">08</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Overuse of Data Skipping Indices</div>
+              <span class="mistake-badge badge-query">🔍 Query</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Adding bloom filter or minmax skip indices to every column that appears in a WHERE
+                  clause, hoping it will speed up all queries automatically.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Skip indices only help when there's a strong correlation between the primary key
+                  column and the indexed column. Without correlation, the index matches most granules anyway (reads
+                  everything) — incurring index overhead with zero benefit. They also slow INSERT performance because
+                  the index must be updated.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="guide-callout guide-callout--warn">
+                  <div class="guide-callout-label">⚠️ Order of operations for query optimization</div>
+                  <strong>1st:</strong> Improve PRIMARY KEY / ORDER BY to match query patterns.<br />
+                  <strong>2nd:</strong> Add a <em>Materialized View</em> with a different ORDER BY for alternate access
+                  patterns.<br />
+                  <strong>3rd:</strong> Consider <em>Projections</em> for pre-aggregated data.<br />
+                  <strong>Last resort only:</strong> Data skipping indices — only when there's high correlation between
+                  primary key and indexed column.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑨ LIMIT doesn't short-circuit -->
+        <div class="mistake-card glass" data-category="query">
+          <div class="mistake-card-header">
+            <div class="mistake-num">09</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">LIMIT Doesn't Always Short-Circuit</div>
+              <span class="mistake-badge badge-query">🔍 Query</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Assuming <code>LIMIT 10</code> always makes queries faster — applying OLTP intuition
+                  where fewer results = faster execution.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">For aggregations, ClickHouse must scan the <em>entire</em> table before it can apply
+                  LIMIT. A query like <code>SELECT a, count() FROM t GROUP BY a ORDER BY b LIMIT 1</code> scans 27
+                  million rows even though you only want 1 row back.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="mistakes-compare">
+                  <div class="mc-panel mc-bad">
+                    <div class="mc-label">❌ Full scan — 3 sec, 27M rows read</div>
+                    <div class="guide-code-block">SELECT postcode1, postcode2,
+                      avg(price) AS avg_price
+                      FROM uk_price_paid
+                      GROUP BY postcode1, postcode2
+                      LIMIT 1;
+                      -- Elapsed: 3.028 sec, read 27.55M rows</div>
+                  </div>
+                  <div class="mc-panel mc-good">
+                    <div class="mc-label">✅ Early termination — 1 sec, 4.8M rows read</div>
+                    <div class="guide-code-block">SELECT postcode1, postcode2,
+                      avg(price) AS avg_price
+                      FROM uk_price_paid
+                      GROUP BY postcode1, postcode2
+                      LIMIT 1
+                      -- Enable in-order aggregation short-circuit:
+                      SETTINGS optimize_aggregation_in_order = 1;
+                      -- Elapsed: 0.999 sec, read 4.81M rows (83% less!)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- LIVE DEMO #09 -->
+            <div class="live-demo-panel v2">
+              <div class="ldp-header">
+                <span class="ldp-icon">🔬</span>
+                <span class="ldp-title">Try it live — GROUP BY + LIMIT 1: timing with and without early
+                  termination</span>
+                <div class="ldp-btn-group">
+                  <button class="ldp-btn-wrong" onclick="runWrong('limit', this)">▶ Run ❌ Wrong</button>
+                  <button class="ldp-btn-fixed" onclick="runFixed('limit', this)">▶ Run ✅ Fixed</button>
+                </div>
+              </div>
+              <div class="ldp-split" id="split-limit">
+                <div class="ldp-wrong-pane" id="wrong-limit">
+                  <div class="ldp-pane-hint">Default — full aggregation before LIMIT</div>
+                </div>
+                <div class="ldp-fixed-pane" id="fixed-limit">
+                  <div class="ldp-pane-hint">optimize_aggregation_in_order=1 — early termination</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ⑩ Readonly tables -->
+        <div class="mistake-card glass" data-category="ops">
+          <div class="mistake-card-header">
+            <div class="mistake-num">10</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Readonly Tables</div>
+              <span class="mistake-badge badge-ops">⚙️ Ops</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-symptom">
+              <span class="symptom-icon">🔴</span>
+              <code>DB::Exception: Table is in readonly mode</code>
+            </div>
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">In self-managed replicated setups, co-locating ClickHouse Keeper (the coordination
+                  service) on the same machine as ClickHouse, or under-allocating Keeper memory/CPU.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">When a node loses connection to Keeper (coordination service), it enters
+                  <strong>read-only mode</strong> — all INSERT/ALTER statements fail. This happens most often when
+                  Keeper is resource-starved or unreachable. Non-Cloud deployments must manage this carefully.
+                </p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="guide-callout guide-callout--info">
+                  <div class="guide-callout-label">💡 Keeper best practices</div>
+                  • Run <strong>ClickHouse Keeper on dedicated hardware</strong> — not mixed with ClickHouse
+                  itself.<br />
+                  • Deploy Keeper in a <strong>3-node quorum</strong> for high availability.<br />
+                  • Prefer <strong>ClickHouse Keeper over ZooKeeper</strong> — it's purpose-built, written in C++ (no
+                  JVM heap tuning).<br />
+                  • ClickHouse Cloud users: this is fully managed — not your problem! ☁️
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑪ Memory limit exceeded -->
+        <div class="mistake-card glass" data-category="query">
+          <div class="mistake-card-header">
+            <div class="mistake-num">11</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Memory Limit Exceeded</div>
+              <span class="mistake-badge badge-query">🔍 Query</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-symptom">
+              <span class="symptom-icon">🔴</span>
+              <code>DB::Exception: Memory limit (total) exceeded: would use X, maximum: Y</code>
+            </div>
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Running large JOINs that put the right-hand table (build side) in memory, or doing
+                  high-cardinality GROUP BY aggregations that build massive in-memory hash maps. Also: leaving rogue
+                  queries running without resource limits.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">ClickHouse kills the query to protect the server. In severe cases, multiple
+                  concurrent heavy queries can OOM the server itself. Common triggers: <code>GROUP BY</code> on UUID or
+                  user_id (billions of unique keys), large JOINs not using the small-table-right rule.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="guide-code-block">-- 1. Put smaller table on the RIGHT side of JOIN:
+                  SELECT * FROM large_events e
+                  JOIN small_users u ON e.user_id = u.id; -- ✅ small on right
+
+                  -- 2. Enable disk-spill for aggregations:
+                  SET max_bytes_before_external_group_by = 10000000000; -- 10GB
+
+                  -- 3. Enable disk-spill for JOINs:
+                  SET max_bytes_before_external_sort = 10000000000;
+
+                  -- 4. Kill rogue queries by user:
+                  SELECT query_id, user, elapsed, memory_usage
+                  FROM system.processes ORDER BY memory_usage DESC;
+
+                  KILL QUERY WHERE user = 'data_team' AND elapsed > 60;
+
+                  -- 5. Set per-user memory quotas in users.xml or via SQL:
+                  ALTER USER analyst SETTINGS max_memory_usage = 5000000000;</div>
+              </div>
+            </div>
+
+            <!-- LIVE DEMO #11 -->
+            <div class="live-demo-panel v2">
+              <div class="ldp-header">
+                <span class="ldp-icon">🔬</span>
+                <span class="ldp-title">Try it live — Heavy aggregation: no safety nets vs disk-spill settings</span>
+                <div class="ldp-btn-group">
+                  <button class="ldp-btn-wrong" onclick="runWrong('memory', this)">▶ Run ❌ Wrong</button>
+                  <button class="ldp-btn-fixed" onclick="runFixed('memory', this)">▶ Run ✅ Fixed</button>
+                </div>
+              </div>
+              <div class="ldp-split" id="split-memory">
+                <div class="ldp-wrong-pane" id="wrong-memory">
+                  <div class="ldp-pane-hint">No memory limits — could OOM on large tables</div>
+                </div>
+                <div class="ldp-fixed-pane" id="fixed-memory">
+                  <div class="ldp-pane-hint">max_bytes_before_external_group_by — safe disk spill</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ⑫ Materialized View issues -->
+        <div class="mistake-card glass" data-category="views">
+          <div class="mistake-card-header">
+            <div class="mistake-num">12</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Materialized View Pitfalls</div>
+              <span class="mistake-badge badge-views">📐 Mat. Views</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistakes (4 common ones)</div>
+                <p class="ms-text">
+                  <strong>a)</strong> Thinking MVs see the full table — they only fire on new INSERT blocks.<br />
+                  <strong>b)</strong> Attaching 50+ MVs to a single table — each adds insert overhead + part
+                  pressure.<br />
+                  <strong>c)</strong> Using CPU-heavy state functions (e.g., <code>quantileState</code>) on every
+                  insert.<br />
+                  <strong>d)</strong> Mismatched schema between the MV SELECT and the target AggregatingMergeTree table.
+                </p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Slow inserts, cascading "Too Many Parts" from all the MV target tables, silent data
+                  corruption when schemas don't match, or MVs that don't reflect mutations/partition drops on the source
+                  table.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="mistakes-compare">
+                  <div class="mc-panel mc-bad">
+                    <div class="mc-label">❌ Schema mismatch — column order relied on, not names</div>
+                    <div class="guide-code-block">-- Target table:
+                      CREATE TABLE summary (
+                      day Date, service String, visits AggregateFunction(sum, Int64)
+                      ) ENGINE = AggregatingMergeTree() ORDER BY (day, service);
+
+                      -- ❌ MV column order doesn't match target column names!
+                      CREATE MATERIALIZED VIEW mv_summary TO summary AS
+                      SELECT toDate(ts) AS day, service,
+                      sumState(1) AS cnt -- "cnt" != "visits"!
+                      FROM events GROUP BY day, service;</div>
+                  </div>
+                  <div class="mc-panel mc-good">
+                    <div class="mc-label">✅ Explicit aliases matching target table exactly</div>
+                    <div class="guide-code-block">CREATE MATERIALIZED VIEW mv_summary TO summary AS
+                      SELECT
+                      toDate(ts) AS day,
+                      service,
+                      -- ✅ alias matches target column name exactly
+                      sumState(1) AS visits
+                      FROM events GROUP BY day, service;
+
+                      -- ✅ Enable parallel view processing to reduce latency:
+                      SET parallel_view_processing = 1;</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- LIVE DEMO #12 -->
+            <div class="live-demo-panel v2">
+              <div class="ldp-header">
+                <span class="ldp-icon">🔬</span>
+                <span class="ldp-title">Try it live — MV created after data (0 rows) vs backfill via INSERT INTO
+                  SELECT</span>
+                <div class="ldp-btn-group">
+                  <button class="ldp-btn-wrong" onclick="runWrong('mv', this)">▶ Run ❌ Wrong</button>
+                  <button class="ldp-btn-fixed" onclick="runFixed('mv', this)">▶ Run ✅ Fixed</button>
+                  <button class="ldp-btn-reset" onclick="runReset('mv', this)">↺ Reset</button>
+                </div>
+              </div>
+              <div class="ldp-split" id="split-mv">
+                <div class="ldp-wrong-pane" id="wrong-mv">
+                  <div class="ldp-pane-hint">Create MV after existing data — see how many rows it captured</div>
+                </div>
+                <div class="ldp-fixed-pane" id="fixed-mv">
+                  <div class="ldp-pane-hint">Run the backfill INSERT INTO ... SELECT to populate historical data</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ⑬ Experimental features in production -->
+        <div class="mistake-card glass" data-category="ops">
+          <div class="mistake-card-header">
+            <div class="mistake-num">13</div>
+            <div class="mistake-meta">
+              <div class="mistake-title">Experimental Features in Production</div>
+              <span class="mistake-badge badge-ops">⚙️ Ops</span>
+            </div>
+            <button class="mistake-toggle" onclick="toggleMistake(this)">▼</button>
+          </div>
+          <div class="mistake-body">
+            <div class="mistake-sections">
+              <div class="mistake-section">
+                <div class="ms-label ms-what">❌ The Mistake</div>
+                <p class="ms-text">Building core production functionality on top of features marked
+                  <code>experimental</code> (not even <code>beta</code>) — such as
+                  <code>SET allow_experimental_variant_type = 1</code> or early JSON type builds.
+                </p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-consequence">⚠️ What Goes Wrong</div>
+                <p class="ms-text">Experimental features can <strong>change APIs without notice, be deprecated, or be
+                    removed entirely</strong> in a future release. On-disk formats may not be forward-compatible,
+                  meaning a ClickHouse upgrade could corrupt or make your tables unreadable. They are officially
+                  unsupported by the ClickHouse team.</p>
+              </div>
+              <div class="mistake-section">
+                <div class="ms-label ms-fix">✅ The Fix</div>
+                <div class="guide-callout guide-callout--warn">
+                  <div class="guide-callout-label">⚠️ Feature Maturity Levels</div>
+                  <strong>🟢 Production-ready:</strong> No special setting required. Fully supported, stable API.<br />
+                  <strong>🟡 Beta:</strong> <code>SET allow_beta_...</code> — On a path to production, officially
+                  supported but may have edge cases.<br />
+                  <strong>🔴 Experimental:</strong> <code>SET allow_experimental_...</code> — Community prototypes. APIs
+                  can change. <strong>Do NOT build production systems on these.</strong><br /><br />
+                  Always check the <a href="https://clickhouse.com/docs/beta-and-experimental-features" target="_blank"
+                    class="guide-link">ClickHouse docs feature maturity page</a> before adopting new features.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end mistakes-grid -->
+
+      <!-- Summary cheatsheet -->
+      <div class="mistakes-cheatsheet glass">
+        <div class="section-title" style="margin-top:0">📋 Quick Reference Cheatsheet</div>
+        <div class="cheat-grid">
+          <div class="cheat-item"><span class="cheat-num">01</span><span>Batch inserts (10k–100k rows), low-cardinality
+              partition key</span></div>
+          <div class="cheat-item"><span class="cheat-num">02</span><span>Scale vertically first — one big machine &gt;
+              many small ones</span></div>
+          <div class="cheat-item"><span class="cheat-num">03</span><span>Use lightweight UPDATE/DELETE, not ALTER TABLE
+              mutations</span></div>
+          <div class="cheat-item"><span class="cheat-num">04</span><span>Explicit typed columns &gt; raw JSON
+              strings</span></div>
+          <div class="cheat-item"><span class="cheat-num">05</span><span>Avoid Nullable — use sentinel default values
+              instead</span></div>
+          <div class="cheat-item"><span class="cheat-num">06</span><span>Identical insert blocks are deduplicated —
+              understand replicated_deduplication_window</span></div>
+          <div class="cheat-item"><span class="cheat-num">07</span><span>ORDER BY low→high cardinality, matching your
+              WHERE clauses</span></div>
+          <div class="cheat-item"><span class="cheat-num">08</span><span>Fix primary key before reaching for skip
+              indices</span></div>
+          <div class="cheat-item"><span class="cheat-num">09</span><span>LIMIT doesn't save aggregations — use
+              optimize_aggregation_in_order</span></div>
+          <div class="cheat-item"><span class="cheat-num">10</span><span>Run ClickHouse Keeper on dedicated hardware,
+              3-node quorum</span></div>
+          <div class="cheat-item"><span class="cheat-num">11</span><span>Small table on right of JOIN; enable external
+              spill for big aggregations</span></div>
+          <div class="cheat-item"><span class="cheat-num">12</span><span>Alias MV columns to match target table; cap MVs
+              per table &lt; 50</span></div>
+          <div class="cheat-item"><span class="cheat-num">13</span><span>Never build production features on experimental
+              settings</span></div>
+        </div>
+      </div>
+
+    </section><!-- end tab-mistakes -->
 
   </main>
 
