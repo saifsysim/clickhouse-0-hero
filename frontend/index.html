@@ -52,6 +52,62 @@
         </svg>
         13 Mistakes
       </button>
+      <button class="nav-item" data-tab="challenges" onclick="switchTab('challenges',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="2" />
+        </svg>
+        SQL Challenges
+      </button>
+      <button class="nav-item" data-tab="schema" onclick="switchTab('schema',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2" />
+          <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2" />
+          <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2" />
+          <path d="M6.5 10v4m0 0H14m-7.5 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        Schema Designer
+      </button>
+      <button class="nav-item" data-tab="benchmark" onclick="switchTab('benchmark',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <polyline points="17 6 23 6 23 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        Benchmark Showdown
+      </button>
+      <button class="nav-item" data-tab="explainer" onclick="switchTab('explainer',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <line x1="11" y1="8" x2="11" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        Query Explainer
+      </button>
+      <button class="nav-item" data-tab="glossary" onclick="switchTab('glossary',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Glossary
+      </button>
+      <button class="nav-item" data-tab="interview" onclick="switchTab('interview',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        Interview Prep
+      </button>
 
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
@@ -205,7 +261,10 @@
         </div>
       </div>
 
-      <div class="section-title">ClickHouse Architecture at a Glance</div>
+      <div class="section-title" style="margin-top:2.5rem">Your Learning Progress</div>
+      <div id="progress-dashboard"></div>
+
+      <div class="section-title" style="margin-top:2.5rem">ClickHouse Architecture at a Glance</div>
       <div class="arch-diagram glass">
         <div class="arch-column">
           <div class="arch-label">Ingestion</div>
@@ -1663,7 +1722,8 @@
                 <div class="uc-card-body">ClickHouse was built at Yandex for ad analytics. Billions of impressions per
                   day, HyperLogLog distinct user counting, Materialized Views for live CTR dashboards.</div>
                 <div class="uc-card-engine">Engine: <code>AggregatingMergeTree</code> + MV →
-                  <code>telemetry_hourly_agg</code></div>
+                  <code>telemetry_hourly_agg</code>
+                </div>
                 <div class="uc-card-sql guide-code-block">SELECT service, sum(event_count) AS impressions,
                   round(avg(avg_duration_ms_state),1) AS avg_ms
                   FROM telemetry_hourly_agg
@@ -1678,7 +1738,8 @@
                 <div class="uc-card-body">100k+ sensor readings per second, ORDER BY (device_id, timestamp) clusters
                   data on disk for ultra-fast range scans and p99 aggregations across millions of devices.</div>
                 <div class="uc-card-engine">Engine: <code>MergeTree</code> partitioned by month →
-                  <code>telemetry_events</code></div>
+                  <code>telemetry_events</code>
+                </div>
                 <div class="uc-card-sql guide-code-block">SELECT service AS device,
                   quantile(0.99)(duration_ms) AS p99
                   FROM telemetry_events
@@ -2739,9 +2800,124 @@
 
     </section><!-- end tab-mistakes -->
 
+    <!-- ─── SQL CHALLENGES ──────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-challenges">
+      <div class="page-header">
+        <div class="page-header-content">
+          <h1 class="page-title">SQL Challenges <span class="page-title-badge">Practice</span></h1>
+          <p class="page-subtitle">12 puzzles against the seeded ClickHouse data. Write the query yourself — then check
+            your answer.</p>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center">
+          <div class="chal-stat-box"><span id="chal-solved">0</span><small>solved</small></div>
+          <div class="chal-stat-box"><span>12</span><small>total</small></div>
+        </div>
+      </div>
+      <div id="challenges-list" style="max-width:900px;margin:0 auto"></div>
+    </section><!-- end tab-challenges -->
+
+    <!-- ─── SCHEMA DESIGNER ──────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-schema">
+      <div class="page-header">
+        <div class="page-header-content">
+          <h1 class="page-title">Schema Designer <span class="page-title-badge">Interactive</span></h1>
+          <p class="page-subtitle">Answer a few questions and get a recommended ClickHouse engine + DDL template
+            instantly.</p>
+        </div>
+      </div>
+      <div class="schema-layout">
+        <div class="schema-tree-col">
+          <div id="schema-steps" class="glass"></div>
+        </div>
+        <div class="schema-result-col">
+          <div id="schema-result" class="glass" style="display:none"></div>
+        </div>
+      </div>
+    </section><!-- end tab-schema -->
+
+    <!-- ─── BENCHMARK SHOWDOWN ──────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-benchmark">
+      <div class="page-header">
+        <div class="page-header-content">
+          <h1 class="page-title">Benchmark Showdown <span class="page-title-badge">Live Timing</span></h1>
+          <p class="page-subtitle">Run query pairs against live ClickHouse data and see the timing difference. Requires
+            backend to be running.</p>
+        </div>
+      </div>
+      <div id="benchmark-list"></div>
+    </section><!-- end tab-benchmark -->
+
+    <!-- ─── QUERY EXPLAINER ──────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-explainer">
+      <div class="page-header">
+        <div class="page-header-content">
+          <h1 class="page-title">Query Explainer <span class="page-title-badge">Analyze</span></h1>
+          <p class="page-subtitle">Paste any ClickHouse SQL query — get a breakdown of functions, clause analysis, and
+            optimization tips.</p>
+        </div>
+      </div>
+      <div class="expl-layout">
+        <div class="expl-input-card">
+          <textarea id="explainer-input" placeholder="-- Paste your ClickHouse SQL here...
+SELECT service, uniqExact(user_id) AS dau
+FROM demo.telemetry_events
+WHERE timestamp >= now() - INTERVAL 24 HOUR
+GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
+          <div class="expl-samples">
+            <span style="font-size:11px;color:var(--text3);align-self:center">Try:</span>
+            <button class="expl-sample-btn" onclick="loadExplainerSample(0)">Distinct users (uniqExact)</button>
+            <button class="expl-sample-btn" onclick="loadExplainerSample(1)">Error rate (PREWHERE)</button>
+            <button class="expl-sample-btn" onclick="loadExplainerSample(2)">SELECT * anti-pattern</button>
+          </div>
+        </div>
+        <div class="expl-output" id="explainer-output">
+          <div class="expl-empty">Paste a ClickHouse SQL query above — analysis appears instantly.</div>
+        </div>
+      </div>
+    </section><!-- end tab-explainer -->
+
+    <!-- ─── GLOSSARY ─────────────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-glossary">
+      <div class="page-header">
+        <div class="page-header-content">
+          <h1 class="page-title">Glossary <span class="page-title-badge">45 Terms</span></h1>
+          <p class="page-subtitle">Every ClickHouse concept, engine, type, and function — with plain-English
+            explanations.</p>
+        </div>
+      </div>
+      <div class="gloss-toolbar">
+        <input class="gloss-search" id="gloss-search" type="text" placeholder="Search terms…"
+          oninput="filterGlossary()" />
+        <select id="gloss-cat" onchange="filterGlossary()" style="min-width:160px">
+          <option value="all">All Categories</option>
+          <option value="Data Types">Data Types</option>
+          <option value="Engines">Engines</option>
+          <option value="Concepts">Concepts</option>
+          <option value="Functions">Functions</option>
+          <option value="SQL Patterns">SQL Patterns</option>
+        </select>
+        <span class="gloss-count" id="gloss-count">45 terms</span>
+      </div>
+      <div id="glossary-list"></div>
+    </section><!-- end tab-glossary -->
+
+    <!-- ─── INTERVIEW PREP ───────────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-interview">
+      <div class="page-header">
+        <div class="page-header-content">
+          <h1 class="page-title">Interview Prep <span class="page-title-badge">20 Questions</span></h1>
+          <p class="page-subtitle">Curated ClickHouse interview questions across 5 categories. Click to reveal the
+            answer.</p>
+        </div>
+      </div>
+      <div id="interview-list"></div>
+    </section><!-- end tab-interview -->
+
   </main>
 
   <script src="app.js"></script>
+  <script src="learn.js"></script>
+  <script src="features.js"></script>
 </body>
 
 </html>

@@ -19,7 +19,12 @@ function switchTab(tab, btn) {
   if (tab === 'costs') loadCosts();
   if (tab === 'cluster') loadCluster();
   if (tab === 'query') loadPlaygroundTables();
-  // Learning Guide – no data to load, just show
+  if (tab === 'challenges') loadChallenges();
+  if (tab === 'schema') initSchemaDesigner();
+  if (tab === 'benchmark') initBenchmark();
+  if (tab === 'glossary') loadGlossary();
+  if (tab === 'interview') loadInterviewPrep();
+  if (tab === 'home') renderProgressDashboard();
 }
 
 // Navigate to a tab from within the Learning Guide (without needing a button ref)
@@ -41,6 +46,8 @@ function showGuideModule(num, btn) {
   document.getElementById('guideProgLbl').textContent = `Module ${num} of ${total}`;
   // Smooth scroll to top of guide content
   document.querySelector('.guide-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  ensureQuizRendered(num);
+  updateSidebarBadges();
 }
 
 
@@ -791,6 +798,7 @@ async function loadReplStatus() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 checkHealth();
 setInterval(checkHealth, 30_000);
+renderProgressDashboard();
 
 // Keyboard shortcut: Ctrl/Cmd+Enter to run query
 document.addEventListener('keydown', e => {
