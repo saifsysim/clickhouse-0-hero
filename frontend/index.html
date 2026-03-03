@@ -108,6 +108,14 @@
         </svg>
         Interview Prep
       </button>
+      <button class="nav-item" data-tab="dba" onclick="switchTab('dba',this)">
+        <svg viewBox="0 0 24 24" fill="none">
+          <ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="2" />
+          <path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12" stroke="currentColor" stroke-width="2" />
+          <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="2" />
+        </svg>
+        System Explorer
+      </button>
 
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
@@ -2912,6 +2920,111 @@ GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
       </div>
       <div id="interview-list"></div>
     </section><!-- end tab-interview -->
+
+    <!-- ─── SYSTEM TABLES EXPLORER ─────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-dba">
+      <div class="page-header">
+        <div class="page-header-content">
+          <h1 class="page-title">System Explorer <span class="page-title-badge">DBA</span></h1>
+          <p class="page-subtitle">Live window into ClickHouse internals — tables, parts, query log, and active merges.
+            Auto-refreshes every 15 s.</p>
+        </div>
+      </div>
+
+      <div class="dba-nav">
+        <button class="dba-nav-btn active" id="dba-nav-tables" onclick="switchDbaSection('tables')">📋 Tables</button>
+        <button class="dba-nav-btn" id="dba-nav-parts" onclick="switchDbaSection('parts')">🗂️ Parts</button>
+        <button class="dba-nav-btn" id="dba-nav-querylog" onclick="switchDbaSection('querylog')">📜 Query Log</button>
+        <button class="dba-nav-btn" id="dba-nav-merges" onclick="switchDbaSection('merges')">⚙️ Merges</button>
+        <button class="btn" onclick="refreshDbaSection()" style="margin-left:auto;font-size:11px;padding:5px 12px">↻
+          Refresh</button>
+      </div>
+
+      <!-- Tables Browser -->
+      <div class="dba-section" id="dba-tables">
+        <table class="dba-table">
+          <thead>
+            <tr>
+              <th>DB</th>
+              <th>Table</th>
+              <th>Engine</th>
+              <th style="text-align:right">Rows</th>
+              <th style="text-align:right">Size</th>
+              <th>Modified</th>
+            </tr>
+          </thead>
+          <tbody id="dba-tables-body">
+            <tr>
+              <td colspan="6" class="dba-loading">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Parts Health -->
+      <div class="dba-section" id="dba-parts" style="display:none">
+        <div class="dba-section-sub">Active parts per table — &gt;300 parts in one partition triggers "Too many parts"
+          errors.</div>
+        <table class="dba-table">
+          <thead>
+            <tr>
+              <th>DB</th>
+              <th>Table</th>
+              <th style="text-align:right">Total Parts</th>
+              <th>Active</th>
+              <th style="text-align:right">Rows</th>
+              <th style="text-align:right">Size</th>
+              <th>Last Modified</th>
+            </tr>
+          </thead>
+          <tbody id="dba-parts-body">
+            <tr>
+              <td colspan="7" class="dba-loading">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Query Log -->
+      <div class="dba-section" id="dba-querylog" style="display:none">
+        <div class="dba-refresh-row">
+          <div class="dba-section-sub" style="margin-bottom:0">Recent finished queries from system.query_log</div>
+          <select id="dba-ql-limit" onchange="loadDbaQueryLog()"
+            style="font-size:11px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text)">
+            <option value="25">25 rows</option>
+            <option value="50" selected>50 rows</option>
+            <option value="100">100 rows</option>
+            <option value="200">200 rows</option>
+          </select>
+          <span class="dba-refresh-note">Click a row to expand the full SQL</span>
+        </div>
+        <table class="dba-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Duration</th>
+              <th style="text-align:right">Rows Read</th>
+              <th style="text-align:right">Result Rows</th>
+              <th>Kind</th>
+              <th>Query</th>
+            </tr>
+          </thead>
+          <tbody id="dba-querylog-body">
+            <tr>
+              <td colspan="6" class="dba-loading">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Merges -->
+      <div class="dba-section" id="dba-merges" style="display:none">
+        <div id="dba-merges-content">
+          <div class="dba-loading" style="padding:20px">Loading…</div>
+        </div>
+      </div>
+
+    </section><!-- end tab-dba -->
 
   </main>
 

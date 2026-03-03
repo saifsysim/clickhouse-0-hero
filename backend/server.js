@@ -1131,6 +1131,130 @@ app.post('/api/mistakes/mv-reset', async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ─── SYSTEM TABLES EXPLORER ───────────────────────────────────────────────────
+app.get('/api/system/tables', async (req, res) => {
+  try {
+    const r = await ch.query({
+      query: `
+        SELECT database, name, engine,
+          formatReadableSize(total_bytes)  AS size_readable,
+          formatReadableQuantity(total_rows) AS rows_readable,
+          total_rows,
+          total_bytes,
+          metadata_modification_time         AS last_modified,
+          comment
+        FROM system.tables
+        WHERE database IN ('demo', 'cluster_demo', 'default')
+          AND engine NOT IN ('View','MaterializedView','Merge')
+        ORDER BY database, total_bytes DESC
+      `, format: 'JSONEachRow',
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/system/parts', async (req, res) => {
+  try {
+    const r = await ch.query({
+      query: `
+        SELECT database, table,
+          count()                                   AS part_count,
+          countIf(active)                           AS active_parts,
+          formatReadableSize(sum(bytes_on_disk))    AS size_readable,
+          sum(bytes_on_disk)                        AS bytes,
+          formatReadableQuantity(sum(rows))         AS rows_readable,
+          sum(rows)                                 AS rows,
+          max(modification_time)                    AS last_modified
+        FROM system.parts
+        WHERE database IN ('demo', 'cluster_demo', 'default')
+        GROUP BY database, table
+        ORDER BY bytes DESC
+      `, format: 'JSONEachRow',
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/system/query-log', async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  try {
+    const r = await ch.query({
+      query: `
+        SELECT
+          query_id,
+          event_time,
+          query_duration_ms,
+          read_rows,
+          read_bytes,
+          result_rows,
+          memory_usage,
+          query_kind,
+          substr(query, 1, 200) AS query_short,
+          exception
+        FROM system.query_log
+        WHERE type = 'QueryFinish'
+          AND query NOT LIKE '%system.query_log%'
+          AND query NOT LIKE '%system.processes%'
+        ORDER BY event_time DESC
+        LIMIT ${limit}
+      `, format: 'JSONEachRow',
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/system/merges', async (req, res) => {
+  try {
+    const [merges, replicaQ] = await Promise.all([
+      ch.query({
+        query: `
+          SELECT database, table, partition,
+            elapsed, progress,
+            formatReadableSize(total_size_bytes_compressed) AS total_size,
+            formatReadableSize(bytes_read_uncompressed)     AS bytes_read,
+            num_parts,
+            result_part_name,
+            merge_type
+          FROM system.merges
+          ORDER BY elapsed DESC
+        `, format: 'JSONEachRow',
+      }),
+      ch.query({
+        query: `
+          SELECT database, table,
+            count()           AS part_count,
+            countIf(active)   AS active_parts,
+            countIf(NOT active) AS inactive_parts,
+            sum(rows)         AS total_rows,
+            formatReadableSize(sum(bytes_on_disk)) AS total_size
+          FROM system.parts
+          WHERE database IN ('demo', 'cluster_demo', 'default')
+          GROUP BY database, table
+          ORDER BY part_count DESC
+          LIMIT 20
+        `, format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({ merges: await merges.json(), partHealth: await replicaQ.json() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/system/processes', async (req, res) => {
+  try {
+    const r = await ch.query({
+      query: `
+        SELECT query_id, elapsed, read_rows, read_bytes, memory_usage,
+          substr(query, 1, 200) AS query_short
+        FROM system.processes
+        WHERE query NOT LIKE '%system.processes%'
+        ORDER BY elapsed DESC
+        LIMIT 20
+      `, format: 'JSONEachRow',
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ─── SERVER START ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🚀 ClickHouse Explorer API running on :${PORT}`));

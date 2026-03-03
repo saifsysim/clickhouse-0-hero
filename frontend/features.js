@@ -421,3 +421,182 @@ function toggleAnswer(i) {
     if (chev) chev.style.transform = open ? '' : 'rotate(90deg)';
     if (item) item.classList.toggle('iqa-open', !open);
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 6. SYSTEM TABLES EXPLORER (DBA Tab)
+// ══════════════════════════════════════════════════════════════════════════════
+let _dbaSection = 'tables';
+let _dbaRefreshTimer = null;
+
+function initDba() {
+  switchDbaSection('tables', true);
+  clearInterval(_dbaRefreshTimer);
+  _dbaRefreshTimer = setInterval(() => {
+    if (document.getElementById('tab-dba')?.classList.contains('active')) {
+      refreshDbaSection();
+    }
+  }, 15000);
+}
+
+function switchDbaSection(section, force) {
+  if (_dbaSection === section && !force) return;
+  _dbaSection = section;
+  document.querySelectorAll('.dba-nav-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`dba-nav-${section}`);
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.dba-section').forEach(s => s.style.display = 'none');
+  const el = document.getElementById(`dba-${section}`);
+  if (el) el.style.display = 'block';
+  refreshDbaSection();
+}
+
+function refreshDbaSection() {
+  const s = _dbaSection;
+  if (s === 'tables') loadDbaTablesBrowser();
+  if (s === 'parts') loadDbaParts();
+  if (s === 'querylog') loadDbaQueryLog();
+  if (s === 'merges') loadDbaMerges();
+}
+
+function fmtMs(ms) {
+  if (!ms) return '—';
+  const n = Number(ms);
+  if (n < 1000) return n + 'ms';
+  return (n / 1000).toFixed(1) + 's';
+}
+function fmtRows(n) { return n ? Number(n).toLocaleString() : '—'; }
+
+// ── Tables Browser ────────────────────────────────────────────────────────────
+async function loadDbaTablesBrowser() {
+  const el = document.getElementById('dba-tables-body');
+  if (!el) return;
+  el.innerHTML = '<tr><td colspan="6" class="dba-loading">Loading…</td></tr>';
+  try {
+    const data = await (await fetch(`${window.API || 'http://localhost:3001/api'}/system/tables`)).json();
+    if (!Array.isArray(data) || !data.length) { el.innerHTML = '<tr><td colspan="6" class="dba-empty">No tables found in demo databases.</td></tr>'; return; }
+    const ENGINE_COLORS = { MergeTree: '#6366f1', ReplacingMergeTree: '#ec4899', SummingMergeTree: '#10b981', AggregatingMergeTree: '#8b5cf6', CollapsingMergeTree: '#f97316', ReplicatedMergeTree: '#14b8a6', ReplicatedReplacingMergeTree: '#ec4899', ReplicatedSummingMergeTree: '#10b981', ReplicatedAggregatingMergeTree: '#8b5cf6', Distributed: '#f9c74f' };
+    el.innerHTML = data.map(t => {
+      const clr = ENGINE_COLORS[t.engine] || '#64748b';
+      return `<tr class="dba-row">
+        <td><span class="dba-db-badge">${t.database}</span></td>
+        <td class="dba-table-name">${t.name}</td>
+        <td><span class="dba-engine-badge" style="background:${clr}22;color:${clr};border-color:${clr}40">${t.engine}</span></td>
+        <td class="dba-num">${t.rows_readable || '—'}</td>
+        <td class="dba-num">${t.size_readable || '0 B'}</td>
+        <td class="dba-dim">${t.last_modified ? new Date(t.last_modified).toLocaleTimeString() : '—'}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { el.innerHTML = `<tr><td colspan="6" class="dba-error">⚠️ ${e.message === 'Failed to fetch' ? 'Backend offline — start the server to use this tab.' : e.message}</td></tr>`; }
+}
+
+// ── Parts ─────────────────────────────────────────────────────────────────────
+async function loadDbaParts() {
+  const el = document.getElementById('dba-parts-body');
+  if (!el) return;
+  el.innerHTML = '<tr><td colspan="7" class="dba-loading">Loading…</td></tr>';
+  try {
+    const data = await (await fetch(`${window.API || 'http://localhost:3001/api'}/system/parts`)).json();
+    if (!Array.isArray(data) || !data.length) { el.innerHTML = '<tr><td colspan="7" class="dba-empty">No parts found.</td></tr>'; return; }
+    el.innerHTML = data.map(p => {
+      const health = p.active_parts <= 5 ? '#10b981' : p.active_parts <= 20 ? '#f9c74f' : '#ef4444';
+      const pct = Math.round(p.active_parts / Math.max(p.part_count, 1) * 100);
+      return `<tr class="dba-row">
+        <td><span class="dba-db-badge">${p.database}</span></td>
+        <td class="dba-table-name">${p.table}</td>
+        <td class="dba-num">${p.part_count}</td>
+        <td><span class="dba-parts-pill" style="background:${health}22;color:${health}">
+          ${p.active_parts} active <span style="opacity:.5;font-size:10px">(${pct}%)</span>
+        </span></td>
+        <td class="dba-num">${p.rows_readable}</td>
+        <td class="dba-num">${p.size_readable}</td>
+        <td class="dba-dim">${p.last_modified ? new Date(p.last_modified).toLocaleTimeString() : '—'}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { el.innerHTML = `<tr><td colspan="7" class="dba-error">⚠️ ${e.message === 'Failed to fetch' ? 'Backend offline.' : e.message}</td></tr>`; }
+}
+
+// ── Query Log ─────────────────────────────────────────────────────────────────
+async function loadDbaQueryLog() {
+  const el = document.getElementById('dba-querylog-body');
+  const limitSel = document.getElementById('dba-ql-limit');
+  const limit = limitSel?.value || 50;
+  if (!el) return;
+  el.innerHTML = '<tr><td colspan="7" class="dba-loading">Loading…</td></tr>';
+  try {
+    const data = await (await fetch(`${window.API || 'http://localhost:3001/api'}/system/query-log?limit=${limit}`)).json();
+    if (!Array.isArray(data) || !data.length) { el.innerHTML = '<tr><td colspan="7" class="dba-empty">No queries in log yet. Run some queries in the SQL Playground!</td></tr>'; return; }
+    el.innerHTML = data.map(q => {
+      const ms = Number(q.query_duration_ms);
+      const msClr = ms < 100 ? '#10b981' : ms < 1000 ? '#f9c74f' : '#ef4444';
+      const err = q.exception ? `<span title="${q.exception}" style="color:#ef4444;cursor:help">⚠️</span>` : '';
+      return `<tr class="dba-row dba-row-ql" onclick="this.classList.toggle('dba-row-open')">
+        <td class="dba-dim" style="white-space:nowrap">${new Date(q.event_time).toLocaleTimeString()}</td>
+        <td><span style="color:${msClr};font-family:var(--mono);font-weight:600">${fmtMs(ms)}</span></td>
+        <td class="dba-num">${fmtRows(q.read_rows)}</td>
+        <td class="dba-num">${q.result_rows ? fmtRows(q.result_rows) : '—'}</td>
+        <td class="dba-kind">${q.query_kind || '—'}</td>
+        <td class="dba-ql-sql">${escHtml ? escHtml(q.query_short || '') : (q.query_short || '')}${err}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { el.innerHTML = `<tr><td colspan="6" class="dba-error">⚠️ ${e.message === 'Failed to fetch' ? 'Backend offline.' : e.message}</td></tr>`; }
+}
+
+// ── Merges ────────────────────────────────────────────────────────────────────
+async function loadDbaMerges() {
+  const el = document.getElementById('dba-merges-content');
+  if (!el) return;
+  el.innerHTML = '<div class="dba-loading" style="padding:20px">Loading…</div>';
+  try {
+    const data = await (await fetch(`${window.API || 'http://localhost:3001/api'}/system/merges`)).json();
+    if (data.error) throw new Error(data.error);
+    const merges = data.merges || [];
+    const health = data.partHealth || [];
+
+    const mergeHtml = merges.length
+      ? `<div class="dba-merges-active">
+          <div class="dba-section-sub">⚙️ ${merges.length} Active Merge${merges.length > 1 ? 's' : ''}</div>
+          ${merges.map(m => `
+          <div class="dba-merge-card glass">
+            <div class="dba-merge-header">
+              <span class="dba-table-name">${m.database}.${m.table}</span>
+              <span class="dba-dim">partition ${m.partition}</span>
+              <span class="dba-engine-badge" style="background:#6366f122;color:#818cf8;border-color:#6366f140">${m.merge_type}</span>
+            </div>
+            <div class="dba-merge-progress-bar"><div style="width:${Math.round(m.progress * 100)}%;background:#6366f1;height:6px;border-radius:3px;transition:width .5s"></div></div>
+            <div class="dba-merge-meta">
+              <span>${Math.round(m.progress * 100)}% · ${m.num_parts} parts</span>
+              <span>${m.total_size}</span>
+              <span>elapsed: ${Number(m.elapsed).toFixed(1)}s</span>
+            </div>
+          </div>`).join('')}
+        </div>`
+      : `<div class="dba-merge-idle glass">
+          <div style="font-size:28px;margin-bottom:8px">✅</div>
+          <div>No active merges — ClickHouse is idle.</div>
+          <div class="dba-dim" style="margin-top:4px;font-size:11px">Merges run automatically in the background when parts accumulate.</div>
+        </div>`;
+
+    const healthHtml = health.length ? `
+      <div class="dba-section-sub" style="margin-top:20px">🗂️ Part Health by Table</div>
+      <table class="dba-table">
+        <thead><tr><th>Database</th><th>Table</th><th>Parts</th><th>Active</th><th>Inactive</th><th>Rows</th><th>Size</th></tr></thead>
+        <tbody>${health.map(h => {
+          const tooMany = h.part_count > 100;
+          return `<tr class="dba-row">
+            <td><span class="dba-db-badge">${h.database}</span></td>
+            <td class="dba-table-name">${h.table}</td>
+            <td class="dba-num" ${tooMany ? 'style="color:#ef4444;font-weight:700"' : ''}>${h.part_count} ${tooMany ? '⚠️' : ''}</td>
+            <td class="dba-num">${h.active_parts}</td>
+            <td class="dba-num" style="color:${h.inactive_parts > 0 ? '#f97316' : 'inherit'}">${h.inactive_parts}</td>
+            <td class="dba-num">${h.total_rows ? Number(h.total_rows).toLocaleString() : '—'}</td>
+            <td class="dba-num">${h.total_size}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>` : '';
+
+    el.innerHTML = mergeHtml + healthHtml;
+  } catch (e) { el.innerHTML = `<div class="dba-error" style="padding:20px">⚠️ ${e.message === 'Failed to fetch' ? 'Backend offline.' : e.message}</div>`; }
+}
+
+// Helper used by DBA tab – shared with explainer
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
