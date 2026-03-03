@@ -18,7 +18,39 @@
 
 ---
 
+## 🌍 Real-World Scenarios & Platform Comparisons
+
+Not sure when to reach for ClickHouse — or which engine to pick? **[PLATFORMS.md](./PLATFORMS.md)** covers:
+
+**7 real-world scenarios you can emulate with the demo data:**
+
+| Scenario | Engine | Demo table |
+|---|---|---|
+| Product analytics (Mixpanel / PostHog pattern) | `MergeTree` | `telemetry_events` |
+| Observability & log analytics (Cloudflare pattern) | `MergeTree` + TTL | `app_logs` |
+| Real-time billing & cost metering | `SummingMergeTree` | `cost_usage` |
+| Ad tech impressions & CTR dashboards | `AggregatingMergeTree` + MV | `telemetry_hourly_agg` |
+| IoT sensor data & time-series | `MergeTree` | `telemetry_events` |
+| Financial trade book with corrections | `CollapsingMergeTree` | `budget_limits` |
+| Kafka deduplication pipeline | `ReplacingMergeTree` | `error_summary` |
+
+**Engine comparison with Snowflake, Databricks, and Apache Pinot:**
+
+| ClickHouse Engine | Snowflake | Databricks Delta | Apache Pinot |
+|---|---|---|---|
+| `MergeTree` | Micro-partitions (auto-managed) | Delta table + Photon engine | Offline/real-time segment |
+| `SummingMergeTree` | Materialized View (scheduled refresh) | Delta Live Tables | Aggregation index |
+| `AggregatingMergeTree` | Dynamic Tables | Structured Streaming | Star-tree index |
+| `ReplacingMergeTree` | `MERGE INTO` (ACID) | `MERGE INTO` (ACID + Z-order) | Upsert table (< 100ms) |
+| `CollapsingMergeTree` | Streams + Tasks | Change Data Feed | Not natively supported |
+| `MergeTree` + TTL | Data Retention (manual scripting) | `VACUUM` + retention policy | Segment retention policy |
+
+📖 Full breakdown with decision matrix and "when NOT to use ClickHouse" → **[PLATFORMS.md](./PLATFORMS.md)**
+
+---
+
 ## 🔥 Interactive 13 Mistakes Tab
+
 
 The **13 Mistakes** tab teaches the most common ClickHouse pitfalls through live, executable demos.  
 Seven of the thirteen mistakes have interactive panels with **three buttons**:
@@ -150,7 +182,9 @@ After running `seed.js`, your ClickHouse instance contains:
 
 ## Further Reading
 
-- 📖 [MISTAKES.md](./MISTAKES.md) — Full 13 Mistakes reference guide
+- 📖 [MISTAKES.md](./MISTAKES.md) — Full 13 Mistakes reference guide with code samples
+- 🌍 [PLATFORMS.md](./PLATFORMS.md) — Real-world scenarios + ClickHouse engine vs Snowflake / Databricks / Pinot
 - 🔗 [ClickHouse blog: 13 common getting-started issues](https://clickhouse.com/blog/common-getting-started-issues-with-clickhouse)
 - 🔗 [Primary key & ORDER BY design guide](https://clickhouse.com/docs/en/optimize/sparse-primary-indexes)
 - 🔗 [Materialized Views deep dive](https://clickhouse.com/docs/en/guides/developer/cascading-materialized-views)
+- 🔗 [ClickHouse engine families reference](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family)
