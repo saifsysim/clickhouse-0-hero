@@ -979,11 +979,11 @@
         <aside class="guide-sidebar glass">
           <div class="guide-sidebar-hd">
             <div class="guide-ttl">📖 ClickHouse Guide</div>
-            <div class="guide-sub">7 modules · learn by doing</div>
+            <div class="guide-sub">8 modules · learn by doing</div>
             <div class="guide-prog-wrap">
-              <div class="guide-prog-bar" id="guideProgBar" style="width:14.3%"></div>
+              <div class="guide-prog-bar" id="guideProgBar" style="width:12.5%"></div>
             </div>
-            <div class="guide-prog-lbl" id="guideProgLbl">Module 1 of 7</div>
+            <div class="guide-prog-lbl" id="guideProgLbl">Module 1 of 8</div>
           </div>
           <div class="guide-mod-list">
             <button class="guide-mod-btn active" onclick="showGuideModule(1,this)" id="gbtn-1">
@@ -1020,6 +1020,11 @@
               <span class="guide-mod-n">07</span>
               <div class="guide-mod-meta"><strong>Cluster &amp; Replication</strong><span>Sharding · Distributed ·
                   Keeper</span></div>
+            </button>
+            <button class="guide-mod-btn" onclick="showGuideModule(8,this)" id="gbtn-8">
+              <span class="guide-mod-n">08</span>
+              <div class="guide-mod-meta"><strong>Real-World Use Cases</strong><span>Apps · Industries · When to
+                  use</span></div>
             </button>
           </div>
         </aside>
@@ -1582,6 +1587,256 @@
               <button class="btn" onclick="goToTab('query')">→ Try the SQL Playground</button>
             </div>
           </div>
+
+          <!-- ── MODULE 8: REAL-WORLD USE CASES ── -->
+          <div class="guide-lesson" id="glesson-8" style="display:none">
+            <div class="guide-lesson-hd">
+              <div class="guide-lesson-num">Module 08</div>
+              <h2 class="guide-lesson-title">Real-World Use Cases &amp; App Types</h2>
+              <p class="guide-lesson-desc">Understand exactly which products, industries, and app archetypes use
+                ClickHouse — and how to decide if it's the right fit for your project.</p>
+              <div class="guide-tags">
+                <span class="guide-tag">🌍 Industries</span>
+                <span class="guide-tag">📱 App Types</span>
+                <span class="guide-tag">⚖️ Decision Matrix</span>
+                <span class="guide-tag">🆚 vs Snowflake / Pinot</span>
+              </div>
+            </div>
+
+            <div class="guide-callout guide-callout--key">
+              <div class="guide-callout-label">💡 The One-Sentence Rule</div>
+              ClickHouse wins when you need to ask <strong>many different analytical questions</strong> over a
+              <strong>large, append-only dataset</strong> faster than any other tool — without paying cloud BI prices.
+            </div>
+
+            <!-- ── USE CASES GRID ── -->
+            <h3 class="guide-h3">7 Real-World Scenarios</h3>
+            <p style="color:var(--text2);font-size:13.5px;margin-bottom:18px">Every scenario below maps to a demo table
+              already seeded in this app. Click a card to see sample SQL.</p>
+
+            <div class="uc-grid">
+
+              <div class="uc-card glass">
+                <div class="uc-card-icon">📊</div>
+                <div class="uc-card-title">Product Analytics</div>
+                <div class="uc-card-companies">PostHog · Mixpanel · Amplitude</div>
+                <div class="uc-card-body">Users generate billions of events — clicks, page views, conversions.
+                  ClickHouse slices them instantly by any dimension: country, device, cohort, funnel step.</div>
+                <div class="uc-card-engine">Engine: <code>MergeTree</code> → <code>telemetry_events</code></div>
+                <div class="uc-card-sql guide-code-block">SELECT event_type, countDistinct(user_id) AS dau
+                  FROM telemetry_events
+                  WHERE timestamp >= today() - INTERVAL 7 DAY
+                  GROUP BY event_type ORDER BY dau DESC;</div>
+              </div>
+
+              <div class="uc-card glass">
+                <div class="uc-card-icon">🔍</div>
+                <div class="uc-card-title">Observability &amp; Log Analytics</div>
+                <div class="uc-card-companies">Cloudflare · Uber · Sentry</div>
+                <div class="uc-card-body">High-throughput log ingestion (100k+ lines/sec), full-text search patterns,
+                  auto-expiring old logs with TTL, and error rate dashboards in milliseconds.</div>
+                <div class="uc-card-engine">Engine: <code>MergeTree + TTL</code> → <code>app_logs</code></div>
+                <div class="uc-card-sql guide-code-block">SELECT toStartOfHour(timestamp) AS hr,
+                  count() AS errors
+                  FROM app_logs WHERE level = 'ERROR'
+                  AND timestamp >= now() - INTERVAL 24 HOUR
+                  GROUP BY hr ORDER BY hr DESC;</div>
+              </div>
+
+              <div class="uc-card glass">
+                <div class="uc-card-icon">💰</div>
+                <div class="uc-card-title">Real-Time Billing &amp; Metering</div>
+                <div class="uc-card-companies">AWS Cost Explorer · Stripe · Snowflake</div>
+                <div class="uc-card-body">Usage records arrive as a stream of tiny increments. SummingMergeTree
+                  pre-aggregates them at merge time — your GROUP BY reads 100 rows instead of 10 million.</div>
+                <div class="uc-card-engine">Engine: <code>SummingMergeTree</code> → <code>cost_usage</code></div>
+                <div class="uc-card-sql guide-code-block">SELECT team, sum(cost_usd) AS total_spend
+                  FROM cost_usage
+                  WHERE date >= toStartOfMonth(today())
+                  GROUP BY team ORDER BY total_spend DESC;</div>
+              </div>
+
+              <div class="uc-card glass">
+                <div class="uc-card-icon">📢</div>
+                <div class="uc-card-title">Ad Tech &amp; Clickstream</div>
+                <div class="uc-card-companies">Yandex · ByteDance · Criteo</div>
+                <div class="uc-card-body">ClickHouse was built at Yandex for ad analytics. Billions of impressions per
+                  day, HyperLogLog distinct user counting, Materialized Views for live CTR dashboards.</div>
+                <div class="uc-card-engine">Engine: <code>AggregatingMergeTree</code> + MV →
+                  <code>telemetry_hourly_agg</code></div>
+                <div class="uc-card-sql guide-code-block">SELECT service, sum(event_count) AS impressions,
+                  round(avg(avg_duration_ms_state),1) AS avg_ms
+                  FROM telemetry_hourly_agg
+                  WHERE hour >= now() - INTERVAL 7 DAY
+                  GROUP BY service ORDER BY impressions DESC;</div>
+              </div>
+
+              <div class="uc-card glass">
+                <div class="uc-card-icon">🌡️</div>
+                <div class="uc-card-title">IoT &amp; Sensor Time-Series</div>
+                <div class="uc-card-companies">Bosch · Smart Grid Operators · VW Telematics</div>
+                <div class="uc-card-body">100k+ sensor readings per second, ORDER BY (device_id, timestamp) clusters
+                  data on disk for ultra-fast range scans and p99 aggregations across millions of devices.</div>
+                <div class="uc-card-engine">Engine: <code>MergeTree</code> partitioned by month →
+                  <code>telemetry_events</code></div>
+                <div class="uc-card-sql guide-code-block">SELECT service AS device,
+                  quantile(0.99)(duration_ms) AS p99
+                  FROM telemetry_events
+                  GROUP BY device ORDER BY p99 DESC LIMIT 10;</div>
+              </div>
+
+              <div class="uc-card glass">
+                <div class="uc-card-icon">📈</div>
+                <div class="uc-card-title">Financial Risk &amp; Trading</div>
+                <div class="uc-card-companies">Trading desks · Market makers · Crypto exchanges</div>
+                <div class="uc-card-body">Immutable trade records with corrections via CollapsingMergeTree sign pattern.
+                  Keeps full audit trail but shows only the net current position — no UPDATE mutations needed.</div>
+                <div class="uc-card-engine">Engine: <code>CollapsingMergeTree(sign)</code> → <code>budget_limits</code>
+                </div>
+                <div class="uc-card-sql guide-code-block">SELECT team, sum(sign * monthly_budget_usd) AS net_budget
+                  FROM budget_limits
+                  GROUP BY team HAVING net_budget > 0
+                  ORDER BY net_budget DESC;</div>
+              </div>
+
+              <div class="uc-card glass">
+                <div class="uc-card-icon">🔄</div>
+                <div class="uc-card-title">Kafka / Stream Deduplication</div>
+                <div class="uc-card-companies">Stripe · DoorDash · Lyft</div>
+                <div class="uc-card-body">Kafka delivers at-least-once — duplicates are guaranteed. ReplacingMergeTree
+                  accepts retries safely: highest version wins on merge. SELECT FINAL gives you clean reads now.</div>
+                <div class="uc-card-engine">Engine: <code>ReplacingMergeTree(ver)</code> → <code>error_summary</code>
+                </div>
+                <div class="uc-card-sql guide-code-block">SELECT error_code, sum(count) AS occurrences,
+                  max(last_seen) AS last_seen
+                  FROM error_summary FINAL
+                  GROUP BY error_code ORDER BY occurrences DESC;</div>
+              </div>
+
+            </div><!-- end uc-grid -->
+
+            <!-- ── APP TYPE CARDS ── -->
+            <h3 class="guide-h3" style="margin-top:36px">App Archetypes That Fit ClickHouse</h3>
+
+            <div class="uc-archetype-grid">
+              <div class="uc-arch-card">
+                <div class="uc-arch-icon">🖥️</div>
+                <div class="uc-arch-name">Internal Analytics Dashboards</div>
+                <div class="uc-arch-desc">Business dashboards querying 100M+ rows — revenue, DAU, error rates.
+                  Sub-second refresh without spinning up a data warehouse.</div>
+              </div>
+              <div class="uc-arch-card">
+                <div class="uc-arch-icon">👤</div>
+                <div class="uc-arch-name">User-Facing Embedded Analytics</div>
+                <div class="uc-arch-desc">SaaS products showing each customer their own usage data. Low latency per user
+                  query at high concurrency — ClickHouse handles concurrent reads well.</div>
+              </div>
+              <div class="uc-arch-card">
+                <div class="uc-arch-icon">🔔</div>
+                <div class="uc-arch-name">Real-Time Alerting Systems</div>
+                <div class="uc-arch-desc">Detect anomalies in error rates, latency spikes, or cost overruns within
+                  seconds of the event happening. Feed Grafana alerts directly from ClickHouse.</div>
+              </div>
+              <div class="uc-arch-card">
+                <div class="uc-arch-icon">🧪</div>
+                <div class="uc-arch-name">A/B Testing Platforms</div>
+                <div class="uc-arch-desc">Slice experiment results by device, cohort, version, country in real time
+                  across millions of exposures. Compute t-tests and confidence intervals in SQL.</div>
+              </div>
+              <div class="uc-arch-card">
+                <div class="uc-arch-icon">🛡️</div>
+                <div class="uc-arch-name">Security / SIEM</div>
+                <div class="uc-arch-desc">Store years of security events and access logs. Fast pattern matching via
+                  tokenbf_v1 skip indices. Detect suspicious sequences across billions of rows.</div>
+              </div>
+              <div class="uc-arch-card">
+                <div class="uc-arch-icon">🌐</div>
+                <div class="uc-arch-name">CDN &amp; Network Analytics</div>
+                <div class="uc-arch-desc">Cloudflare processes ~1B DNS queries/day in ClickHouse. Aggregate by ASN,
+                  country, response code, cache hit ratio — at global scale.</div>
+              </div>
+            </div>
+
+            <!-- ── PLATFORM COMPARISON ── -->
+            <h3 class="guide-h3" style="margin-top:36px">How ClickHouse Compares</h3>
+            <div class="uc-platform-table">
+              <div class="uc-pt-header">
+                <span>Requirement</span><span>ClickHouse</span><span>Snowflake</span><span>Databricks</span><span>Pinot</span>
+              </div>
+              <div class="uc-pt-row">
+                <span class="uc-pt-req">Sub-second ad-hoc queries</span>
+                <span class="uc-pt-val good">✅ Native</span>
+                <span class="uc-pt-val warn">⚠️ Seconds–minutes</span>
+                <span class="uc-pt-val warn">⚠️ Photon, not real-time</span>
+                <span class="uc-pt-val good">✅ &lt; 100ms (real-time)</span>
+              </div>
+              <div class="uc-pt-row">
+                <span class="uc-pt-req">Auto-summing counters</span>
+                <span class="uc-pt-val good">✅ SummingMergeTree</span>
+                <span class="uc-pt-val warn">⚠️ Scheduled MV refresh</span>
+                <span class="uc-pt-val warn">⚠️ Delta Live Tables</span>
+                <span class="uc-pt-val warn">⚠️ Aggregation index</span>
+              </div>
+              <div class="uc-pt-row">
+                <span class="uc-pt-req">ACID multi-table writes</span>
+                <span class="uc-pt-val bad">❌ No cross-table txn</span>
+                <span class="uc-pt-val good">✅ ACID</span>
+                <span class="uc-pt-val good">✅ Delta ACID</span>
+                <span class="uc-pt-val bad">❌ Limited</span>
+              </div>
+              <div class="uc-pt-row">
+                <span class="uc-pt-req">High-throughput ingest</span>
+                <span class="uc-pt-val good">✅ Millions/sec (batch)</span>
+                <span class="uc-pt-val warn">⚠️ Via Snowpipe</span>
+                <span class="uc-pt-val good">✅ Spark streaming</span>
+                <span class="uc-pt-val good">✅ Kafka-native</span>
+              </div>
+              <div class="uc-pt-row">
+                <span class="uc-pt-req">Auto-expiring data (TTL)</span>
+                <span class="uc-pt-val good">✅ Engine TTL</span>
+                <span class="uc-pt-val warn">⚠️ Manual scripting</span>
+                <span class="uc-pt-val warn">⚠️ VACUUM + retention</span>
+                <span class="uc-pt-val good">✅ Segment retention</span>
+              </div>
+              <div class="uc-pt-row">
+                <span class="uc-pt-req">Managed cloud + BI ecosystem</span>
+                <span class="uc-pt-val warn">⚠️ Self-hosted or Cloud</span>
+                <span class="uc-pt-val good">✅ Best ecosystem</span>
+                <span class="uc-pt-val good">✅ Unity Catalog</span>
+                <span class="uc-pt-val warn">⚠️ Ops required</span>
+              </div>
+            </div>
+
+            <!-- ── WHEN NOT TO USE ── -->
+            <div class="guide-callout guide-callout--warn" style="margin-top:28px">
+              <div class="guide-callout-label">⚠️ When NOT to use ClickHouse</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;font-size:13px;color:var(--text2)">
+                <div>❌ <strong>OLTP</strong> — frequent point updates → use PostgreSQL</div>
+                <div>❌ <strong>Complex joins</strong> on normalised schemas → use Snowflake / BigQuery</div>
+                <div>❌ <strong>Row-level UPDATEs</strong> at high rate → use MySQL / DynamoDB</div>
+                <div>❌ <strong>Full-text search</strong> at scale → use Elasticsearch / Typesense</div>
+                <div>❌ <strong>Graph traversal</strong> → use Neo4j</div>
+                <div>❌ <strong>ML model training</strong> → use Databricks / Spark</div>
+              </div>
+            </div>
+
+            <!-- ── NEXT ── -->
+            <div class="guide-callout"
+              style="background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.25);margin-top:28px">
+              <div class="guide-callout-label">🎓 You've completed the Learning Guide!</div>
+              Now explore the live demos — the Telemetry, Logging, Cost, and Cluster tabs all use real data from the
+              engines you've studied. The <strong>13 Mistakes</strong> tab lets you run the wrong and right code
+              side-by-side against this data.
+            </div>
+            <div class="guide-next-row">
+              <button class="btn btn-primary"
+                onclick="switchTab('mistakes', document.querySelector('[data-tab=mistakes]'))">→ Explore 13 Mistakes
+                interactively</button>
+              <button class="btn" onclick="goToTab('query')">→ Open SQL Playground</button>
+              <button class="btn" onclick="goToTab('telemetry')">→ Live Telemetry Demo</button>
+            </div>
+
+          </div><!-- end glesson-8 -->
 
         </div><!-- end guide-main -->
       </div><!-- end guide-layout -->

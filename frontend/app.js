@@ -31,7 +31,7 @@ function goToTab(tab) {
 
 // Show a guide module, update progress bar + sidebar active state
 function showGuideModule(num, btn) {
-  const total = 7; // update this when adding AI modules in addAI branch
+  const total = 8; // 8 modules: 7 core + real-world use cases
   document.querySelectorAll('.guide-lesson').forEach(l => l.style.display = 'none');
   document.querySelectorAll('.guide-mod-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`glesson-${num}`).style.display = '';
