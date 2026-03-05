@@ -30,7 +30,14 @@ cd "$ROOT"
 docker compose up -d clickhouse
 
 echo "  ⏳  Waiting for ClickHouse to be ready…"
-until docker exec clickhouse-explorer wget -q --spider http://localhost:8123/ping 2>/dev/null; do
+RETRIES=0
+MAX_RETRIES=30
+until docker exec clickhouse-explorer wget -qO- 'http://localhost:8123/?query=SELECT+1' 2>/dev/null | grep -q 1; do
+  RETRIES=$((RETRIES + 1))
+  if [ "$RETRIES" -ge "$MAX_RETRIES" ]; then
+    echo "  ❌  ClickHouse failed to start after ${MAX_RETRIES}s. Check: docker logs clickhouse-explorer"
+    exit 1
+  fi
   sleep 1
 done
 echo "  ✅  ClickHouse is ready!"
