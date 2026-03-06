@@ -278,6 +278,7 @@ function updateSidebarBadges() {
 const CHALLENGES = [
     {
         id: 1, title: 'p99 Latency Per Service', difficulty: 'Beginner', table: 'telemetry_events',
+        whyItMatters: 'SLAs are usually defined at p99, not average. A service averaging 50ms but with p99 of 4s is broken for 1% of users in production.',
         prompt: 'Find the p99 latency (in ms) for each service, along with the average latency and total event count. Order slowest first.',
         hint: 'Use quantile(0.99)(column) and GROUP BY service.',
         solution: 'SELECT\n    service,\n    quantile(0.99)(duration_ms) AS p99_ms,\n    round(avg(duration_ms), 2)  AS avg_ms,\n    count()                     AS total_events\nFROM demo.telemetry_events\nGROUP BY service\nORDER BY p99_ms DESC;'
@@ -285,6 +286,7 @@ const CHALLENGES = [
 
     {
         id: 2, title: 'Error Count Per Service (Last 24h)', difficulty: 'Beginner', table: 'app_logs',
+        whyItMatters: 'This is the first query an on-call engineer runs during an incident. ClickHouse can scan 100M log rows in under a second — Postgres would time out.',
         prompt: 'Count the number of ERROR-level log entries per service in the last 24 hours, ordered by most errors first.',
         hint: "Filter: WHERE level = 'ERROR' AND timestamp >= now() - INTERVAL 24 HOUR.",
         solution: "SELECT\n    service,\n    count() AS error_count\nFROM demo.app_logs\nWHERE level = 'ERROR'\n  AND timestamp >= now() - INTERVAL 24 HOUR\nGROUP BY service\nORDER BY error_count DESC;"
@@ -292,73 +294,83 @@ const CHALLENGES = [
 
     {
         id: 3, title: 'Busiest Hour of the Day', difficulty: 'Beginner', table: 'telemetry_events',
+        whyItMatters: 'Capacity planning depends on knowing your peak traffic window. ClickHouse's toHour() runs natively on columnar timestamp data without row- by - row extraction.',
         prompt: 'Which hour of the day (0–23) has the most total events across all services? Show the top 5.',
-        hint: 'Use toHour(timestamp) to extract the hour.',
-        solution: 'SELECT\n    toHour(timestamp) AS hour_of_day,\n    count()           AS total_events\nFROM demo.telemetry_events\nGROUP BY hour_of_day\nORDER BY total_events DESC\nLIMIT 5;'
+    hint: 'Use toHour(timestamp) to extract the hour.',
+    solution: 'SELECT\n    toHour(timestamp) AS hour_of_day,\n    count()           AS total_events\nFROM demo.telemetry_events\nGROUP BY hour_of_day\nORDER BY total_events DESC\nLIMIT 5;'
     },
 
-    {
-        id: 4, title: 'Slowest Event Types on Average', difficulty: 'Beginner', table: 'telemetry_events',
-        prompt: 'Find the average duration_ms per event_type. Show from slowest to fastest.',
-        hint: 'Use avg() and round() with GROUP BY event_type.',
-        solution: 'SELECT\n    event_type,\n    round(avg(duration_ms), 2) AS avg_ms,\n    count()                    AS total_events\nFROM demo.telemetry_events\nGROUP BY event_type\nORDER BY avg_ms DESC;'
-    },
+{
+    id: 4, title: 'Slowest Event Types on Average', difficulty: 'Beginner', table: 'telemetry_events',
+        whyItMatters: 'Knowing which event types are slow helps you prioritize optimization. In Postgres, this GROUP BY on millions of rows would require an index; in ClickHouse the columnar scan is sufficient.',
+            prompt: 'Find the average duration_ms per event_type. Show from slowest to fastest.',
+                hint: 'Use avg() and round() with GROUP BY event_type.',
+                    solution: 'SELECT\n    event_type,\n    round(avg(duration_ms), 2) AS avg_ms,\n    count()                    AS total_events\nFROM demo.telemetry_events\nGROUP BY event_type\nORDER BY avg_ms DESC;'
+},
 
-    {
-        id: 5, title: 'Services With Error Rate > 5%', difficulty: 'Intermediate', table: 'app_logs',
-        prompt: 'Find services where more than 5% of log entries in the last 7 days are ERROR level.',
-        hint: 'Use countIf(level = \'ERROR\') for conditional counting. Filter with HAVING after GROUP BY.',
-        solution: "SELECT\n    service,\n    countIf(level = 'ERROR')                              AS errors,\n    count()                                               AS total,\n    round(100.0 * countIf(level = 'ERROR') / count(), 2) AS error_rate_pct\nFROM demo.app_logs\nWHERE timestamp >= now() - INTERVAL 7 DAY\nGROUP BY service\nHAVING error_rate_pct > 5\nORDER BY error_rate_pct DESC;"
-    },
+{
+    id: 5, title: 'Services With Error Rate > 5%', difficulty: 'Intermediate', table: 'app_logs',
+        whyItMatters: 'countIf() is a ClickHouse superpower — it does a conditional count in a single pass, avoiding a subquery. This pattern appears constantly in monitoring dashboards.',
+            prompt: 'Find services where more than 5% of log entries in the last 7 days are ERROR level.',
+                hint: 'Use countIf(level = \'ERROR\') for conditional counting. Filter with HAVING after GROUP BY.',
+                    solution: "SELECT\n    service,\n    countIf(level = 'ERROR')                              AS errors,\n    count()                                               AS total,\n    round(100.0 * countIf(level = 'ERROR') / count(), 2) AS error_rate_pct\nFROM demo.app_logs\nWHERE timestamp >= now() - INTERVAL 7 DAY\nGROUP BY service\nHAVING error_rate_pct > 5\nORDER BY error_rate_pct DESC;"
+},
 
-    {
-        id: 6, title: 'Monthly Spend Per Team', difficulty: 'Beginner', table: 'cost_usage',
-        prompt: 'Show total spending per team broken down by calendar month.',
-        hint: 'Use toStartOfMonth(date) to bucket by month.',
-        solution: 'SELECT\n    team,\n    toStartOfMonth(date) AS month,\n    round(sum(cost_usd), 2) AS total_spend\nFROM demo.cost_usage\nGROUP BY team, month\nORDER BY team, month;'
-    },
+{
+    id: 6, title: 'Monthly Spend Per Team', difficulty: 'Beginner', table: 'cost_usage',
+        whyItMatters: 'This is the core finops query every engineering org needs. SummingMergeTree pre-aggregates these sums during background merges, so this query is nearly instant even at billions of rows.',
+            prompt: 'Show total spending per team broken down by calendar month.',
+                hint: 'Use toStartOfMonth(date) to bucket by month.',
+                    solution: 'SELECT\n    team,\n    toStartOfMonth(date) AS month,\n    round(sum(cost_usd), 2) AS total_spend\nFROM demo.cost_usage\nGROUP BY team, month\nORDER BY team, month;'
+},
 
-    {
-        id: 7, title: 'Unique Users Per Event Type', difficulty: 'Beginner', table: 'telemetry_events',
-        prompt: 'How many distinct user_ids triggered each event_type? Show as approximate count too.',
-        hint: 'Use countDistinct(user_id) for exact, or uniq(user_id) for faster approximate.',
-        solution: 'SELECT\n    event_type,\n    countDistinct(user_id) AS exact_unique_users,\n    uniq(user_id)          AS approx_unique_users,\n    count()                AS total_events\nFROM demo.telemetry_events\nGROUP BY event_type\nORDER BY exact_unique_users DESC;'
-    },
+{
+    id: 7, title: 'Unique Users Per Event Type', difficulty: 'Beginner', table: 'telemetry_events',
+        whyItMatters: 'uniq() uses HyperLogLog — it computes approximate cardinality in O(1) memory regardless of dataset size. Exact countDistinct on 1B rows is often impossible; uniq() makes it trivial.',
+            prompt: 'How many distinct user_ids triggered each event_type? Show as approximate count too.',
+                hint: 'Use countDistinct(user_id) for exact, or uniq(user_id) for faster approximate.',
+                    solution: 'SELECT\n    event_type,\n    countDistinct(user_id) AS exact_unique_users,\n    uniq(user_id)          AS approx_unique_users,\n    count()                AS total_events\nFROM demo.telemetry_events\nGROUP BY event_type\nORDER BY exact_unique_users DESC;'
+},
 
-    {
-        id: 8, title: 'p50 vs p99 Spread', difficulty: 'Intermediate', table: 'telemetry_events',
-        prompt: 'Compare p50 and p99 latency per service. Compute a "spread ratio" (p99/p50). High ratio = inconsistent service.',
-        hint: 'You can call quantile() multiple times in one SELECT — once for each percentile.',
-        solution: 'SELECT\n    service,\n    quantile(0.50)(duration_ms)                                          AS p50_ms,\n    quantile(0.99)(duration_ms)                                          AS p99_ms,\n    round(quantile(0.99)(duration_ms) / quantile(0.50)(duration_ms), 1) AS spread_ratio\nFROM demo.telemetry_events\nGROUP BY service\nORDER BY spread_ratio DESC;'
-    },
+{
+    id: 8, title: 'p50 vs p99 Spread', difficulty: 'Intermediate', table: 'telemetry_events',
+        whyItMatters: 'A high p99/p50 spread ratio reveals "bi-modal" latency — some requests are fast, others very slow. ClickHouse computes multiple quantiles in a single scan; Postgres needs multiple passes.',
+            prompt: 'Compare p50 and p99 latency per service. Compute a "spread ratio" (p99/p50). High ratio = inconsistent service.',
+                hint: 'You can call quantile() multiple times in one SELECT — once for each percentile.',
+                    solution: 'SELECT\n    service,\n    quantile(0.50)(duration_ms)                                          AS p50_ms,\n    quantile(0.99)(duration_ms)                                          AS p99_ms,\n    round(quantile(0.99)(duration_ms) / quantile(0.50)(duration_ms), 1) AS spread_ratio\nFROM demo.telemetry_events\nGROUP BY service\nORDER BY spread_ratio DESC;'
+},
 
-    {
-        id: 9, title: 'Events in 5-Minute Buckets', difficulty: 'Intermediate', table: 'telemetry_events',
-        prompt: 'Show event counts in 5-minute time buckets for the last 2 hours. Useful for spotting traffic spikes.',
-        hint: 'Use toStartOfFiveMinutes(timestamp) to bucket into 5-minute windows.',
-        solution: 'SELECT\n    toStartOfFiveMinutes(timestamp) AS bucket,\n    count()                         AS events,\n    uniq(user_id)                   AS unique_users\nFROM demo.telemetry_events\nWHERE timestamp >= now() - INTERVAL 2 HOUR\nGROUP BY bucket\nORDER BY bucket;'
-    },
+{
+    id: 9, title: 'Events in 5-Minute Buckets', difficulty: 'Intermediate', table: 'telemetry_events',
+        whyItMatters: 'Time-bucketing is the foundation of every time-series dashboard. ClickHouse has 30+ built-in toStartOf*() functions (toStartOfMinute, toStartOfHour, toStartOfWeek…) that run at column speed.',
+            prompt: 'Show event counts in 5-minute time buckets for the last 2 hours. Useful for spotting traffic spikes.',
+                hint: 'Use toStartOfFiveMinutes(timestamp) to bucket into 5-minute windows.',
+                    solution: 'SELECT\n    toStartOfFiveMinutes(timestamp) AS bucket,\n    count()                         AS events,\n    uniq(user_id)                   AS unique_users\nFROM demo.telemetry_events\nWHERE timestamp >= now() - INTERVAL 2 HOUR\nGROUP BY bucket\nORDER BY bucket;'
+},
 
-    {
-        id: 10, title: 'Top 5 Most Frequent Error Messages', difficulty: 'Intermediate', table: 'app_logs',
-        prompt: 'Find the 5 most frequently occurring error messages and which service produced them.',
-        hint: 'GROUP BY message AND service, then ORDER BY count() DESC LIMIT 5.',
-        solution: "SELECT\n    message,\n    service,\n    count() AS occurrences\nFROM demo.app_logs\nWHERE level = 'ERROR'\nGROUP BY message, service\nORDER BY occurrences DESC\nLIMIT 5;"
-    },
+{
+    id: 10, title: 'Top 5 Most Frequent Error Messages', difficulty: 'Intermediate', table: 'app_logs',
+        whyItMatters: 'Finding the dominant error signature is debugging step 1. Without an index on the message column, Postgres would do a full table scan; ClickHouse does too — but 10–100x faster due to columnar compression.',
+            prompt: 'Find the 5 most frequently occurring error messages and which service produced them.',
+                hint: 'GROUP BY message AND service, then ORDER BY count() DESC LIMIT 5.',
+                    solution: "SELECT\n    message,\n    service,\n    count() AS occurrences\nFROM demo.app_logs\nWHERE level = 'ERROR'\nGROUP BY message, service\nORDER BY occurrences DESC\nLIMIT 5;"
+},
 
-    {
-        id: 11, title: 'Teams That Exceeded $500 in a Month', difficulty: 'Intermediate', table: 'cost_usage',
-        prompt: 'Which teams had total monthly spend exceeding $500? Show the month and the total.',
-        hint: 'Use HAVING to filter after aggregation — you cannot use WHERE on aggregate results.',
-        solution: 'SELECT\n    team,\n    toStartOfMonth(date)    AS month,\n    round(sum(cost_usd), 2) AS total_spend\nFROM demo.cost_usage\nGROUP BY team, month\nHAVING total_spend > 500\nORDER BY total_spend DESC;'
-    },
+{
+    id: 11, title: 'Teams That Exceeded $500 in a Month', difficulty: 'Intermediate', table: 'cost_usage',
+        whyItMatters: 'HAVING is essential for post-aggregation filtering. This is a common finops alert pattern — ClickHouse can evaluate it over months of cost data in milliseconds.',
+            prompt: 'Which teams had total monthly spend exceeding $500? Show the month and the total.',
+                hint: 'Use HAVING to filter after aggregation — you cannot use WHERE on aggregate results.',
+                    solution: 'SELECT\n    team,\n    toStartOfMonth(date)    AS month,\n    round(sum(cost_usd), 2) AS total_spend\nFROM demo.cost_usage\nGROUP BY team, month\nHAVING total_spend > 500\nORDER BY total_spend DESC;'
+},
 
-    {
-        id: 12, title: 'Rolling 7-Day Event Count', difficulty: 'Advanced', table: 'telemetry_events',
-        prompt: 'Compute a rolling 7-day event count per service using a window function over daily aggregates.',
-        hint: 'First GROUP BY service + day, then use sum(...) OVER (PARTITION BY service ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW).',
-        solution: 'SELECT\n    service,\n    toDate(timestamp)   AS day,\n    count()             AS daily_events,\n    sum(count()) OVER (\n        PARTITION BY service\n        ORDER BY toDate(timestamp)\n        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW\n    )                   AS rolling_7d\nFROM demo.telemetry_events\nGROUP BY service, day\nORDER BY service, day;'
-    }
+{
+    id: 12, title: 'Rolling 7-Day Event Count', difficulty: 'Advanced', table: 'telemetry_events',
+        whyItMatters: 'Rolling windows are the most powerful pattern in analytics engineering. ClickHouse window functions run over pre-grouped data, making them dramatically faster than equivalent CTEs in traditional databases.',
+            prompt: 'Compute a rolling 7-day event count per service using a window function over daily aggregates.',
+                hint: 'First GROUP BY service + day, then use sum(...) OVER (PARTITION BY service ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW).',
+                    solution: 'SELECT\n    service,\n    toDate(timestamp)   AS day,\n    count()             AS daily_events,\n    sum(count()) OVER (\n        PARTITION BY service\n        ORDER BY toDate(timestamp)\n        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW\n    )                   AS rolling_7d\nFROM demo.telemetry_events\nGROUP BY service, day\nORDER BY service, day;'
+}
 ];
 
 let _chalStates = {};
@@ -385,6 +397,7 @@ function buildChallengeCard(c) {
         '</div>' +
         '</div>' +
         '</div>' +
+        (c.whyItMatters ? '<div class="chal-why"><span class="chal-why-icon">🏭</span><em>' + escHtml(c.whyItMatters) + '</em></div>' : '') +
         '<div class="chal-prompt">' + escHtml(c.prompt) + '</div>' +
         '<textarea class="chal-editor" id="chal-ed-' + c.id + '" spellcheck="false" placeholder="-- Write your SQL here&#10;SELECT ...">' + escHtml(state.userSql || '') + '</textarea>' +
         '<div class="chal-action-row">' +

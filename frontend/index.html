@@ -237,36 +237,40 @@
         </div>
       </div>
 
-      <div class="section-title">What You'll Learn</div>
-      <div class="learn-grid">
-        <div class="learn-item" onclick="switchTab('engines', document.querySelector('[data-tab=engines]'))">
-          <div class="learn-num">01</div>
-          <div>
-            <strong>Database Engines</strong>
-            <p>MergeTree, SummingMergeTree, AggregatingMergeTree, ReplacingMergeTree, CollapsingMergeTree</p>
-          </div>
+      <div class="section-title">🚀 Start Here — Your Learning Path</div>
+      <div class="start-path">
+        <div class="path-step" onclick="switchTab('guide', document.querySelector('[data-tab=guide]'))">
+          <div class="path-step-num">1</div>
+          <div class="path-step-body"><strong>Read the Learning Guide</strong><span>8 modules from columnar basics to production patterns</span></div>
+          <div class="path-step-arrow">→</div>
         </div>
-        <div class="learn-item" onclick="switchTab('telemetry', document.querySelector('[data-tab=telemetry]'))">
-          <div class="learn-num">02</div>
-          <div>
-            <strong>Telemetry Pipeline</strong>
-            <p>High-throughput event ingestion, real-time dashboards, funnels, and user analytics</p>
-          </div>
+        <div class="path-step" onclick="switchTab('mistakes', document.querySelector('[data-tab=mistakes]'))">
+          <div class="path-step-num">2</div>
+          <div class="path-step-body"><strong>Avoid the 13 Mistakes</strong><span>The most common ClickHouse pitfalls that trip up every newcomer</span></div>
+          <div class="path-step-arrow">→</div>
         </div>
-        <div class="learn-item" onclick="switchTab('logging', document.querySelector('[data-tab=logging]'))">
-          <div class="learn-num">03</div>
-          <div>
-            <strong>Structured Logging</strong>
-            <p>Indexed log storage with TTL, full-text search, error rate tracking, and trace correlation</p>
-          </div>
+        <div class="path-step" onclick="switchTab('engines', document.querySelector('[data-tab=engines]'))">
+          <div class="path-step-num">3</div>
+          <div class="path-step-body"><strong>Explore DB Engines</strong><span>See MergeTree, SummingMergeTree, ReplacingMergeTree side by side with live data</span></div>
+          <div class="path-step-arrow">→</div>
         </div>
-        <div class="learn-item" onclick="switchTab('costs', document.querySelector('[data-tab=costs]'))">
-          <div class="learn-num">04</div>
-          <div>
-            <strong>Cost & Usage Analytics</strong>
-            <p>API spend tracking, per-team budgets, anomaly alerts, and cost-per-call analysis</p>
-          </div>
+        <div class="path-step" onclick="switchTab('telemetry', document.querySelector('[data-tab=telemetry]'))">
+          <div class="path-step-num">4</div>
+          <div class="path-step-body"><strong>Try the Use Cases</strong><span>Live telemetry, logging &amp; cost dashboards backed by 500k+ real rows</span></div>
+          <div class="path-step-arrow">→</div>
         </div>
+        <div class="path-step" onclick="switchTab('challenges', document.querySelector('[data-tab=challenges]'))">
+          <div class="path-step-num">5</div>
+          <div class="path-step-body"><strong>Solve the SQL Challenges</strong><span>12 hands-on puzzles with hints, solutions, and production context</span></div>
+          <div class="path-step-arrow">→</div>
+        </div>
+        <div class="path-step path-step-final" onclick="switchTab('interview', document.querySelector('[data-tab=interview]'))">
+          <div class="path-step-num">🥷</div>
+          <div class="path-step-body"><strong>Nail the Interview Prep</strong><span>20 Q&amp;As — complete all to earn your ClickHouse Ninja certification</span></div>
+          <div class="path-step-arrow">🏁</div>
+        </div>
+      </div>
+
       </div>
 
       <div class="section-title" style="margin-top:2.5rem">Your Learning Progress</div>
@@ -301,6 +305,72 @@
           <div class="arch-item">Parallel Scans</div>
           <div class="arch-item">Materialized Views</div>
         </div>
+      </div>
+
+      <div class="section-title" style="margin-top:2.5rem">⚡ ClickHouse vs Postgres vs BigQuery</div>
+      <div class="vs-table-wrap glass">
+        <table class="vs-table">
+          <thead>
+            <tr>
+              <th>Capability</th>
+              <th class="vs-ch">🟡 ClickHouse</th>
+              <th class="vs-pg">🐘 Postgres</th>
+              <th class="vs-bq">☁️ BigQuery</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Storage model</td>
+              <td class="vs-ch">Columnar (OLAP)</td>
+              <td class="vs-pg">Row-based (OLTP)</td>
+              <td class="vs-bq">Columnar (OLAP)</td>
+            </tr>
+            <tr>
+              <td>Best for</td>
+              <td class="vs-ch">Analytics, logs, metrics</td>
+              <td class="vs-pg">Transactions, CRUD</td>
+              <td class="vs-bq">Analytics at scale</td>
+            </tr>
+            <tr>
+              <td>GROUP BY 1B rows</td>
+              <td class="vs-ch">✅ Seconds</td>
+              <td class="vs-pg">❌ Minutes / timeout</td>
+              <td class="vs-bq">✅ Seconds (costs $$)</td>
+            </tr>
+            <tr>
+              <td>Insert throughput</td>
+              <td class="vs-ch">✅ Millions/sec (batch)</td>
+              <td class="vs-pg">⚠️ Thousands/sec</td>
+              <td class="vs-bq">⚠️ Streaming, with lag</td>
+            </tr>
+            <tr>
+              <td>Complex JOINs</td>
+              <td class="vs-ch">⚠️ Hash joins, right-hand small</td>
+              <td class="vs-pg">✅ Excellent</td>
+              <td class="vs-bq">✅ Good</td>
+            </tr>
+            <tr>
+              <td>UPDATE / DELETE</td>
+              <td class="vs-ch">⚠️ Heavy mutations (avoid)</td>
+              <td class="vs-pg">✅ Native MVCC</td>
+              <td class="vs-bq">❌ Limited DML</td>
+            </tr>
+            <tr>
+              <td>Cost model</td>
+              <td class="vs-ch">✅ Self-host or cloud</td>
+              <td class="vs-pg">✅ Self-host or cloud</td>
+              <td class="vs-bq">⚠️ Pay per TB scanned</td>
+            </tr>
+            <tr>
+              <td>Real-time ingest</td>
+              <td class="vs-ch">✅ Direct INSERT + Kafka</td>
+              <td class="vs-pg">⚠️ Triggers / CDC</td>
+              <td class="vs-bq">⚠️ Pub/Sub pipeline</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="vs-note">💡 <strong>Rule of thumb:</strong> Use ClickHouse when you need aggregate analytics over
+          large datasets fast. Keep Postgres for transactions, complex joins, or anything with frequent UPDATEs.</p>
       </div>
     </section>
 
