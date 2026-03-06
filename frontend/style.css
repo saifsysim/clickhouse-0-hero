@@ -3389,3 +3389,17 @@ select option {
 .dba-merge-progress-bar { background:rgba(255,255,255,0.06); border-radius:4px; height:6px; overflow:hidden; margin-bottom:6px; }
 .dba-merge-meta { display:flex; gap:16px; font-size:11px; color:var(--text3); }
 .dba-merges-active { margin-bottom:8px; }
+
+/* ── Chart canvas wrapper: fixes Chart.js infinite vertical growth in flex containers ── */
+.chart-canvas-wrap {
+  position: relative;
+  width: 100%;
+  /* height is set inline per-chart; position:relative + fixed height
+     gives Chart.js a stable bounding box so ResizeObserver never feeds back */
+}
+.chart-canvas-wrap canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
