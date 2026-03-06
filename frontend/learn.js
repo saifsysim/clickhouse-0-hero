@@ -294,7 +294,7 @@ const CHALLENGES = [
 
     {
         id: 3, title: 'Busiest Hour of the Day', difficulty: 'Beginner', table: 'telemetry_events',
-        whyItMatters: 'Capacity planning depends on knowing your peak traffic window. ClickHouse's toHour() runs natively on columnar timestamp data without row- by - row extraction.',
+        whyItMatters: 'Capacity planning depends on knowing your peak traffic window. ClickHouse\'s toHour() runs natively on columnar timestamp data without row-by-row extraction.',
         prompt: 'Which hour of the day (0–23) has the most total events across all services? Show the top 5.',
     hint: 'Use toHour(timestamp) to extract the hour.',
     solution: 'SELECT\n    toHour(timestamp) AS hour_of_day,\n    count()           AS total_events\nFROM demo.telemetry_events\nGROUP BY hour_of_day\nORDER BY total_events DESC\nLIMIT 5;'
