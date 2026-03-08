@@ -1255,7 +1255,836 @@ app.get('/api/system/processes', async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// 🛍️  SHOPPERS PARADISE — 7 Analytical Use Cases
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─── Seed Status: row counts for all sp_ tables ───────────────────────────────
+app.get('/api/shoppers/seed-status', async (req, res) => {
+  try {
+    const r = await ch.query({
+      query: `
+        SELECT name AS tbl,
+               formatReadableQuantity(total_rows) AS rows,
+               formatReadableSize(total_bytes)    AS size
+        FROM system.tables
+        WHERE database = 'demo' AND name LIKE 'sp_%'
+        ORDER BY name
+      `,
+      format: 'JSONEachRow',
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 1. Price Intelligence & Trend Analysis ───────────────────────────────────
+app.get('/api/shoppers/price-intelligence', async (req, res) => {
+  const { category = 'Electronics', days = 7 } = req.query;
+  try {
+    const [priceDrop, vendorComp, trending] = await Promise.all([
+      // Top price drops in the last N days
+      ch.query({
+        query: `
+          SELECT
+            sku_id,
+            product_name,
+            vendor_name,
+            category,
+            brand,
+            min(price_usd)  AS low_price,
+            max(price_usd)  AS high_price,
+            round((max(price_usd) - min(price_usd)) / max(price_usd) * 100, 1) AS pct_drop,
+            count()         AS price_updates,
+            max(event_ts)   AS last_seen
+          FROM demo.sp_price_events
+          WHERE event_ts >= now() - INTERVAL ${days} DAY
+            AND category = '${category}'
+          GROUP BY sku_id, product_name, vendor_name, category, brand
+          HAVING pct_drop > 10
+          ORDER BY pct_drop DESC
+          LIMIT 10
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Vendor price comparison for the category
+      ch.query({
+        query: `
+          SELECT
+            vendor_name,
+            category,
+            round(avg(price_usd), 2)          AS avg_price,
+            round(min(price_usd), 2)          AS min_price,
+            round(max(price_usd), 2)          AS max_price,
+            countIf(in_stock = 1)             AS in_stock_count,
+            count()                           AS total_listings,
+            round(countIf(in_stock=1)/count()*100, 1) AS stock_pct
+          FROM demo.sp_price_events
+          WHERE event_ts >= now() - INTERVAL ${days} DAY
+            AND category = '${category}'
+          GROUP BY vendor_name, category
+          ORDER BY avg_price ASC
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Price trend over last 7 days (daily avg)
+      ch.query({
+        query: `
+          SELECT
+            toDate(event_ts)            AS day,
+            category,
+            round(avg(price_usd), 2)    AS avg_price,
+            round(min(price_usd), 2)    AS min_price,
+            count()                     AS updates
+          FROM demo.sp_price_events
+          WHERE event_ts >= now() - INTERVAL ${days} DAY
+            AND category = '${category}'
+          GROUP BY day, category
+          ORDER BY day ASC
+        `,
+        format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({
+      useCase: 'Price Intelligence & Trend Analysis',
+      category,
+      priceDrop: await priceDrop.json(),
+      vendorComparison: await vendorComp.json(),
+      priceTrend: await trending.json(),
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 2. Coupon & Deal Effectiveness ──────────────────────────────────────────
+app.get('/api/shoppers/coupon-effectiveness', async (req, res) => {
+  try {
+    const [funnel, topCoupons, vendorFunnel] = await Promise.all([
+      // Overall coupon funnel
+      ch.query({
+        query: `
+          SELECT
+            stage,
+            count()                    AS events,
+            uniq(user_id)              AS unique_users,
+            round(sum(savings_usd), 2) AS total_savings,
+            round(sum(order_usd), 2)   AS total_orders
+          FROM demo.sp_coupon_events
+          WHERE event_ts >= now() - INTERVAL 30 DAY
+          GROUP BY stage
+          ORDER BY multiIf(stage='seen',1, stage='clicked',2, stage='applied',3, 4)
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Top performing coupons by conversion
+      ch.query({
+        query: `
+          SELECT
+            coupon_code,
+            discount_pct,
+            countIf(stage='seen')       AS seen,
+            countIf(stage='clicked')    AS clicked,
+            countIf(stage='applied')    AS applied,
+            countIf(stage='converted')  AS converted,
+            round(countIf(stage='converted') / greatest(countIf(stage='seen'), 1) * 100, 1) AS conversion_pct,
+            round(sum(savings_usd), 2)  AS total_savings_usd
+          FROM demo.sp_coupon_events
+          WHERE event_ts >= now() - INTERVAL 30 DAY
+          GROUP BY coupon_code, discount_pct
+          ORDER BY converted DESC
+          LIMIT 8
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Funnel drop-off by vendor
+      ch.query({
+        query: `
+          SELECT
+            vendor_id,
+            countIf(stage='seen')        AS seen,
+            countIf(stage='converted')   AS converted,
+            round(countIf(stage='converted') / greatest(countIf(stage='seen'), 1) * 100, 1) AS conv_pct,
+            round(sum(savings_usd), 2)   AS savings_usd
+          FROM demo.sp_coupon_events
+          WHERE event_ts >= now() - INTERVAL 30 DAY
+          GROUP BY vendor_id
+          ORDER BY conv_pct DESC
+          LIMIT 10
+        `,
+        format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({
+      useCase: 'Coupon & Deal Effectiveness',
+      funnel: await funnel.json(),
+      topCoupons: await topCoupons.json(),
+      vendorFunnel: await vendorFunnel.json(),
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 3. Cashback & Rewards Attribution ───────────────────────────────────────
+app.get('/api/shoppers/cashback-attribution', async (req, res) => {
+  try {
+    const [vendorRoi, topUsers, daily, leakage] = await Promise.all([
+      // Vendor cashback ROI: cost paid vs affiliate revenue earned
+      ch.query({
+        query: `
+          SELECT
+            vendor_name,
+            count()                           AS orders,
+            uniq(user_id)                     AS unique_shoppers,
+            round(sum(order_usd), 2)          AS total_gmv,
+            round(sum(cashback_usd), 2)       AS total_cashback_paid,
+            round(sum(affiliate_revenue_usd), 2) AS total_affiliate_earned,
+            round(sum(affiliate_revenue_usd) - sum(cashback_usd), 2) AS net_margin,
+            round(avg(cashback_pct), 2)       AS avg_cashback_pct,
+            countIf(attributed=0)             AS leakage_count
+          FROM demo.sp_cashback_events
+          WHERE event_ts >= now() - INTERVAL 30 DAY
+          GROUP BY vendor_name
+          ORDER BY total_gmv DESC
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Top savers: users with most cashback earned
+      ch.query({
+        query: `
+          SELECT
+            user_id,
+            count()                       AS orders,
+            round(sum(cashback_usd), 2)   AS total_earned,
+            round(sum(order_usd), 2)      AS total_spent,
+            round(avg(cashback_pct), 1)   AS avg_pct,
+            uniq(vendor_id)               AS vendors_used
+          FROM demo.sp_cashback_events
+          WHERE attributed = 1
+          GROUP BY user_id
+          ORDER BY total_earned DESC
+          LIMIT 10
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Daily cashback trend
+      ch.query({
+        query: `
+          SELECT
+            toDate(event_ts)              AS day,
+            count()                       AS orders,
+            round(sum(cashback_usd), 2)   AS cashback_paid,
+            round(sum(affiliate_revenue_usd), 2) AS affiliate_earned,
+            round(sum(order_usd), 2)      AS gmv
+          FROM demo.sp_cashback_events
+          WHERE event_ts >= now() - INTERVAL 30 DAY
+          GROUP BY day
+          ORDER BY day ASC
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Attribution leakage by vendor
+      ch.query({
+        query: `
+          SELECT
+            vendor_name,
+            countIf(attributed=1)  AS tracked_count,
+            countIf(attributed=0)  AS leaked,
+            round(countIf(attributed=0)/count()*100, 1) AS leakage_pct
+          FROM demo.sp_cashback_events
+          GROUP BY vendor_name
+          ORDER BY leakage_pct DESC
+          LIMIT 8
+        `,
+        format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({
+      useCase: 'Cashback & Rewards Attribution',
+      vendorRoi: await vendorRoi.json(),
+      topUsers: await topUsers.json(),
+      daily: await daily.json(),
+      leakage: await leakage.json(),
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 4. User Behavior & Personalization ──────────────────────────────────────
+app.get('/api/shoppers/user-behavior', async (req, res) => {
+  try {
+    const [segments, crossVendor, dropOff, priceSensitivity] = await Promise.all([
+      // Segment comparison: conversion rate, avg time, category preference
+      ch.query({
+        query: `
+          SELECT
+            user_segment,
+            count()                           AS total_sessions,
+            uniq(user_id)                     AS unique_users,
+            round(avg(time_on_page_s), 0)     AS avg_time_on_page_s,
+            round(countIf(converted=1)/count()*100, 1) AS conversion_pct,
+            round(avg(price_shown), 2)        AS avg_price_shown,
+            uniq(vendor_id)                   AS vendors_explored
+          FROM demo.sp_user_sessions
+          GROUP BY user_segment
+          ORDER BY conversion_pct DESC
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Cross-vendor journey: how many vendors per user before converting
+      ch.query({
+        query: `
+          SELECT
+            user_segment,
+            round(avg(vendor_count), 1)       AS avg_vendors_per_user,
+            round(avg(session_count), 0)      AS avg_sessions,
+            round(avg(converted_pct), 1)      AS avg_conversion_pct
+          FROM (
+            SELECT
+              user_id,
+              user_segment,
+              uniq(vendor_id)  AS vendor_count,
+              count()          AS session_count,
+              round(countIf(converted=1)/count()*100, 1) AS converted_pct
+            FROM demo.sp_user_sessions
+            GROUP BY user_id, user_segment
+          )
+          GROUP BY user_segment
+          ORDER BY avg_vendors_per_user DESC
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Page drop-off by type
+      ch.query({
+        query: `
+          SELECT
+            page_type,
+            count()                           AS visits,
+            uniq(user_id)                     AS unique_users,
+            round(countIf(converted=1)/count()*100, 1) AS conversion_pct,
+            round(avg(time_on_page_s), 0)     AS avg_time_s
+          FROM demo.sp_user_sessions
+          GROUP BY page_type
+          ORDER BY multiIf(page_type='search',1, page_type='pdp',2, page_type='compare',3, page_type='cart',4, 5)
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Price sensitivity: top 3 categories per segment (LIMIT N BY)
+      ch.query({
+        query: `
+          SELECT
+            user_segment,
+            category,
+            round(avg(price_shown), 2)        AS avg_willingness_to_pay,
+            round(countIf(converted=1)/count()*100, 1) AS conversion_pct,
+            count()                           AS sessions
+          FROM demo.sp_user_sessions
+          GROUP BY user_segment, category
+          ORDER BY user_segment, sessions DESC
+          LIMIT 3 BY user_segment
+        `,
+        format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({
+      useCase: 'User Behavior & Personalization',
+      segments: await segments.json(),
+      crossVendor: await crossVendor.json(),
+      dropOff: await dropOff.json(),
+      priceSensitivity: await priceSensitivity.json(),
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 5. Real-Time Vendor Feed Ingestion ──────────────────────────────────────
+app.post('/api/shoppers/vendor-feed-ingest', async (req, res) => {
+  const { vendor_id = 'amzn', sku_id = 'SKU00001', price_usd = 99.99, in_stock = 1 } = req.body;
+  try {
+    // Count before
+    const before = await ch.query({
+      query: `SELECT count() AS cnt FROM demo.sp_vendor_feed WHERE vendor_id='${vendor_id}' AND sku_id='${sku_id}'`,
+      format: 'JSONEachRow',
+    });
+    const beforeCount = (await before.json())[0]?.cnt || 0;
+
+    // Insert new feed row with higher version (ReplacingMergeTree will keep latest)
+    const version = Date.now();
+    await ch.insert({
+      table: 'demo.sp_vendor_feed',
+      values: [{
+        ingested_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+        vendor_id,
+        sku_id,
+        product_name: `Product ${sku_id}`,
+        category: 'Electronics',
+        price_usd: parseFloat(price_usd),
+        in_stock: parseInt(in_stock),
+        feed_version: version,
+      }],
+      format: 'JSONEachRow',
+    });
+
+    // Count after
+    const after = await ch.query({
+      query: `SELECT count() AS cnt FROM demo.sp_vendor_feed WHERE vendor_id='${vendor_id}' AND sku_id='${sku_id}'`,
+      format: 'JSONEachRow',
+    });
+    const afterCount = (await after.json())[0]?.cnt || 0;
+
+    // Show current state for this SKU across all vendors
+    const snapshot = await ch.query({
+      query: `
+        SELECT vendor_id, sku_id, price_usd, in_stock, ingested_at, feed_version
+        FROM demo.sp_vendor_feed FINAL
+        WHERE sku_id = '${sku_id}'
+        ORDER BY price_usd ASC
+        LIMIT 15
+      `,
+      format: 'JSONEachRow',
+    });
+
+    res.json({
+      useCase: 'Real-Time Vendor Feed Ingestion',
+      inserted: { vendor_id, sku_id, price_usd, in_stock, feed_version: version },
+      engine: 'ReplacingMergeTree(feed_version)',
+      behavior: 'Latest row per (vendor_id, sku_id) wins at merge time. FINAL forces dedup on read.',
+      rowsBefore: Number(beforeCount),
+      rowsAfter: Number(afterCount),
+      currentSnapshot: await snapshot.json(),
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Also GET to fetch the current feed state for a SKU
+app.get('/api/shoppers/vendor-feed-ingest', async (req, res) => {
+  const { sku_id = 'SKU00001' } = req.query;
+  try {
+    const snapshot = await ch.query({
+      query: `
+        SELECT vendor_id, sku_id, product_name, price_usd, in_stock, ingested_at
+        FROM demo.sp_vendor_feed FINAL
+        WHERE sku_id = '${sku_id}'
+        ORDER BY price_usd ASC
+        LIMIT 15
+      `,
+      format: 'JSONEachRow',
+    });
+
+    const totalFeed = await ch.query({
+      query: `SELECT count() AS total_rows, uniq(vendor_id) AS vendors, uniq(sku_id) AS skus FROM demo.sp_vendor_feed`,
+      format: 'JSONEachRow',
+    });
+
+    res.json({
+      sku_id,
+      snapshot: await snapshot.json(),
+      feedStats: (await totalFeed.json())[0],
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 6. Product Catalog Intelligence ─────────────────────────────────────────
+app.get('/api/shoppers/catalog-intelligence', async (req, res) => {
+  try {
+    const [brandShare, categoryStats, freshness, topRated] = await Promise.all([
+      // Brand market share by review count and avg rating
+      ch.query({
+        query: `
+          SELECT
+            brand,
+            count()                        AS products,
+            sum(vendor_count)              AS total_vendor_listings,
+            sum(review_count)              AS total_reviews,
+            round(avg(avg_rating), 2)      AS avg_rating,
+            round(avg(min_price_usd), 2)   AS avg_min_price,
+            round(avg(avg_price_usd), 2)   AS avg_price
+          FROM demo.sp_product_catalog FINAL
+          GROUP BY brand
+          ORDER BY total_reviews DESC
+          LIMIT 10
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Category stats: depth and pricing
+      ch.query({
+        query: `
+          SELECT
+            category,
+            count()                        AS sku_count,
+            uniq(brand)                    AS brand_count,
+            round(avg(min_price_usd), 2)   AS avg_low_price,
+            round(avg(avg_price_usd), 2)   AS avg_price,
+            round(max(avg_price_usd), 2)   AS max_price,
+            sum(review_count)              AS total_reviews
+          FROM demo.sp_product_catalog FINAL
+          GROUP BY category
+          ORDER BY sku_count DESC
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Data freshness: how recently each category was updated
+      ch.query({
+        query: `
+          SELECT
+            category,
+            max(updated_at)                 AS last_updated,
+            dateDiff('hour', max(updated_at), now()) AS hours_stale,
+            countIf(dateDiff('hour', updated_at, now()) > 24) AS stale_count,
+            count()                         AS total_skus
+          FROM demo.sp_product_catalog
+          GROUP BY category
+          ORDER BY hours_stale DESC
+        `,
+        format: 'JSONEachRow',
+      }),
+      // Top-rated products by category (LIMIT 2 BY)
+      ch.query({
+        query: `
+          SELECT
+            category,
+            brand,
+            product_name,
+            avg_rating,
+            review_count,
+            round(min_price_usd, 2) AS min_price,
+            vendor_count
+          FROM demo.sp_product_catalog FINAL
+          ORDER BY category, avg_rating DESC, review_count DESC
+          LIMIT 2 BY category
+        `,
+        format: 'JSONEachRow',
+      }),
+    ]);
+    res.json({
+      useCase: 'Product Catalog Intelligence',
+      brandShare: await brandShare.json(),
+      categoryStats: await categoryStats.json(),
+      freshness: await freshness.json(),
+      topRated: await topRated.json(),
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── 7. Materialized Views for Live Dashboards ───────────────────────────────
+app.get('/api/shoppers/live-dashboard', async (req, res) => {
+  const { category = 'Electronics' } = req.query;
+  try {
+    // Run both raw and MV queries and time them
+    const t0Raw = Date.now();
+    const rawResult = await ch.query({
+      query: `
+        SELECT
+          toStartOfHour(event_ts) AS hour,
+          vendor_id,
+          count()                 AS price_updates,
+          round(avg(price_usd), 2) AS avg_price,
+          round(min(price_usd), 2) AS min_price,
+          uniq(sku_id)            AS unique_skus
+        FROM demo.sp_price_events
+        WHERE category = '${category}'
+          AND event_ts >= now() - INTERVAL 7 DAY
+        GROUP BY hour, vendor_id
+        ORDER BY hour DESC, price_updates DESC
+        LIMIT 50
+      `,
+      format: 'JSONEachRow',
+    });
+    const rawRows = await rawResult.json();
+    const rawMs = Date.now() - t0Raw;
+
+    const t0Mv = Date.now();
+    const mvResult = await ch.query({
+      query: `
+        SELECT
+          hour,
+          vendor_id,
+          countMerge(price_count)   AS price_updates,
+          round(avgMerge(avg_price), 2) AS avg_price,
+          round(minMerge(min_price), 2) AS min_price,
+          uniqMerge(unique_skus)    AS unique_skus
+        FROM demo.sp_price_hourly_agg
+        WHERE category = '${category}'
+          AND hour >= now() - INTERVAL 7 DAY
+        GROUP BY hour, vendor_id
+        ORDER BY hour DESC, price_updates DESC
+        LIMIT 50
+      `,
+      format: 'JSONEachRow',
+    });
+    const mvRows = await mvResult.json();
+    const mvMs = Date.now() - t0Mv;
+
+    // Current live KPIs (always from MV)
+    const kpiResult = await ch.query({
+      query: `
+        SELECT
+          vendor_id,
+          countMerge(price_count)        AS total_price_updates,
+          round(avgMerge(avg_price), 2)  AS avg_price,
+          round(minMerge(min_price), 2)  AS best_price,
+          uniqMerge(unique_skus)         AS active_skus
+        FROM demo.sp_price_hourly_agg
+        WHERE category = '${category}'
+          AND hour >= now() - INTERVAL 24 HOUR
+        GROUP BY vendor_id
+        ORDER BY total_price_updates DESC
+      `,
+      format: 'JSONEachRow',
+    });
+
+    res.json({
+      useCase: 'Materialized Views for Live Dashboards',
+      category,
+      benchmark: {
+        rawQuery: { ms: rawMs, rows: rawRows.length, sql: 'Full scan of sp_price_events — reads all raw rows' },
+        mvQuery: { ms: mvMs, rows: mvRows.length, sql: 'AggregatingMergeTree — merges pre-computed partial states' },
+        speedupMs: rawMs - mvMs,
+        speedupPct: rawMs > 0 ? Math.round((1 - mvMs / rawMs) * 100) : 0,
+      },
+      rawData: rawRows.slice(0, 20),
+      mvData: mvRows.slice(0, 20),
+      liveKpis: await kpiResult.json(),
+      explanation: 'The MV mv_sp_price_hourly fires on every INSERT into sp_price_events, writing countState/avgState/minState/uniqState partial aggregates into sp_price_hourly_agg. Dashboard queries use *Merge() functions — no raw rows are scanned.',
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── UC8: Async Inserts + Deduplication ──────────────────────────────────────
+app.post('/api/shoppers/async-inserts', async (req, res) => {
+  try {
+    const batchId = req.body.batchId || `batch-${Date.now()}`;
+    const rows = [];
+    const VENDORS = ['amzn', 'wmt', 'tgt', 'ebay', 'bby'];
+    const SKUS = ['SKU00001', 'SKU00002', 'SKU00003', 'SKU00004', 'SKU00005'];
+    for (const v of VENDORS) {
+      for (const s of SKUS) {
+        rows.push({ vendor_id: v, sku_id: s, price_usd: +(80 + Math.random() * 120).toFixed(2), batch_id: batchId });
+      }
+    }
+
+    const t0 = Date.now();
+    // Fire async insert — buffer on server, return immediately (wait_for_async_insert=0)
+    await ch.insert({
+      table: 'demo.sp_async_feed_demo',
+      values: rows,
+      format: 'JSONEachRow',
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 0,
+        async_insert_deduplicate: 1,
+      },
+    });
+    const insertMs = Date.now() - t0;
+
+    // Re-insert same batchId — ClickHouse deduplication will drop the duplicate
+    await ch.insert({
+      table: 'demo.sp_async_feed_demo',
+      values: rows,
+      format: 'JSONEachRow',
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 0,
+        async_insert_deduplicate: 1,
+      },
+    });
+
+    // Wait briefly for async flush, then count rows
+    await new Promise(r => setTimeout(r, 1200));
+    const countRes = await ch.query({ query: `SELECT count() AS c FROM demo.sp_async_feed_demo WHERE batch_id = '${batchId}'`, format: 'JSONEachRow' });
+    const countRows = await countRes.json();
+    const rowsInDb = Number(countRows[0]?.c ?? 0);
+
+    // Pull async insert log (may be empty — only written after flush)
+    let logRows = [];
+    try {
+      const logRes = await ch.query({
+        query: `
+          SELECT
+            status, rows, bytes,
+            formatDateTime(event_time, '%H:%M:%S') AS logged_at,
+            exception
+          FROM system.async_insert_log
+          WHERE table = 'sp_async_feed_demo'
+            AND database = 'demo'
+            AND event_time >= now() - INTERVAL 5 MINUTE
+          ORDER BY event_time DESC
+          LIMIT 10
+        `,
+        format: 'JSONEachRow',
+      });
+      logRows = await logRes.json();
+    } catch (_) { /* system.async_insert_log not available on this CH version */ }
+
+    res.json({
+      useCase: 'Async Inserts + Deduplication',
+      batchId,
+      rowsSent: rows.length,
+      insertMs,
+      rowsInDb,
+      dedupWorked: rowsInDb === rows.length, // second insert was dropped
+      log: logRows,
+      explanation: [
+        'async_insert=1: ClickHouse buffers INSERTs server-side and flushes when buffer fills or timeout fires.',
+        'wait_for_async_insert=0: The INSERT call returns immediately — ideal for high-throughput event streams.',
+        'async_insert_deduplicate=1: If the same block is re-sent within the dedup window, ClickHouse drops the duplicate — protecting against client retries.',
+        `We sent ${rows.length} rows twice with the same batch_id. Only ${rowsInDb} rows landed — the second batch was deduped away.`,
+      ],
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/shoppers/async-inserts', async (req, res) => {
+  try {
+    const countRes = await ch.query({ query: `SELECT count() AS c FROM demo.sp_async_feed_demo`, format: 'JSONEachRow' });
+    const total = await countRes.json();
+    let log = [];
+    try {
+      const logRes = await ch.query({
+        query: `
+          SELECT
+            status,
+            sum(rows) AS total_rows,
+            count() AS flushes,
+            formatDateTime(max(event_time), '%H:%M:%S') AS last_flush
+          FROM system.async_insert_log
+          WHERE table = 'sp_async_feed_demo'
+            AND database = 'demo'
+            AND event_time >= now() - INTERVAL 30 MINUTE
+          GROUP BY status
+        `,
+        format: 'JSONEachRow',
+      });
+      log = await logRes.json();
+    } catch (_) { /* system.async_insert_log not available on this CH version */ }
+    res.json({
+      totalRows: Number(total[0]?.c ?? 0),
+      log,
+      settings: {
+        async_insert: 'Buffer writes server-side — client returns before data is written to parts',
+        wait_for_async_insert: '0 = fire-and-forget | 1 = wait for flush confirmation',
+        async_insert_deduplicate: 'Drops identical block re-submissions within the dedup window',
+        async_insert_max_data_size: '10MB default buffer before forced flush',
+        async_insert_busy_timeout_ms: '200ms default: flush after 200ms even if buffer not full',
+      },
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ─── UC9: Dictionaries ────────────────────────────────────────────────────────
+app.get('/api/shoppers/dictionaries', async (req, res) => {
+  try {
+    // Ensure dictionary exists (may not if seed wasn't re-run)
+    await ch.command({
+      // Drop and recreate with HASHED layout (supports String keys; FLAT only supports UInt64)
+      query: `
+      CREATE OR REPLACE DICTIONARY demo.product_dict (
+        sku_id        String,
+        product_name  String   DEFAULT 'Unknown',
+        category      String   DEFAULT 'Unknown',
+        brand         String   DEFAULT 'Unknown',
+        avg_rating    Float32  DEFAULT 0.0,
+        vendor_count  UInt8    DEFAULT 0
+      )
+      PRIMARY KEY sku_id
+      SOURCE(CLICKHOUSE(TABLE 'sp_product_catalog' DB 'demo'))
+      LAYOUT(HASHED())
+      LIFETIME(MIN 0 MAX 300)
+    ` });
+
+    // 1. dictGet — single-point O(1) lookup from dictionary
+    const t1 = Date.now();
+    const dictRes = await ch.query({
+      query: `
+        SELECT
+          sku_id,
+          vendor_id,
+          round(avg(price_usd), 2)                                      AS avg_price,
+          dictGet('demo.product_dict', 'brand',        sku_id)          AS brand,
+          dictGet('demo.product_dict', 'category',     sku_id)          AS category,
+          dictGet('demo.product_dict', 'avg_rating',   sku_id)          AS rating,
+          dictGet('demo.product_dict', 'vendor_count', sku_id)          AS num_vendors
+        FROM demo.sp_price_events
+        WHERE event_ts >= now() - INTERVAL 7 DAY
+        GROUP BY sku_id, vendor_id
+        ORDER BY avg_price DESC
+        LIMIT 15
+      `,
+      format: 'JSONEachRow',
+    });
+    const dictMs = Date.now() - t1;
+    const dictRows = await dictRes.json();
+
+    // 2. Same query with a regular JOIN for benchmark comparison
+    const t2 = Date.now();
+    const joinRes = await ch.query({
+      query: `
+        SELECT
+          p.sku_id,
+          p.vendor_id,
+          round(avg(p.price_usd), 2)   AS avg_price,
+          any(c.brand)                  AS brand,
+          any(c.category)               AS category,
+          any(c.avg_rating)             AS rating,
+          any(c.vendor_count)           AS num_vendors
+        FROM demo.sp_price_events p
+        INNER JOIN demo.sp_product_catalog c USING (sku_id)
+        WHERE p.event_ts >= now() - INTERVAL 7 DAY
+        GROUP BY p.sku_id, p.vendor_id
+        ORDER BY avg_price DESC
+        LIMIT 15
+      `,
+      format: 'JSONEachRow',
+    });
+    const joinMs = Date.now() - t2;
+    const joinRows = await joinRes.json();
+
+    // 3. Dictionary metadata
+    const metaRes = await ch.query({
+      query: `
+        SELECT
+          name,
+          status,
+          element_count,
+          formatReadableSize(bytes_allocated) AS memory_used,
+          formatDateTime(last_successful_update_time, '%H:%M:%S') AS last_reload
+        FROM system.dictionaries
+        WHERE database = 'demo'
+      `,
+      format: 'JSONEachRow',
+    });
+    const meta = await metaRes.json();
+
+    // 4. dictGetOrDefault example — show fallback for unknown SKU
+    const fallbackRes = await ch.query({
+      query: `
+        SELECT
+          dictGetOrDefault('demo.product_dict', 'brand', 'SKU_UNKNOWN', 'N/A')   AS brand_fallback,
+          dictGetOrDefault('demo.product_dict', 'brand', 'SKU00001',    'N/A')   AS brand_real,
+          dictHas('demo.product_dict', 'SKU_UNKNOWN')                             AS sku_exists_unknown,
+          dictHas('demo.product_dict', 'SKU00001')                               AS sku_exists_real
+      `,
+      format: 'JSONEachRow',
+    });
+    const fallback = await fallbackRes.json();
+
+    res.json({
+      useCase: 'Dictionaries',
+      dictMs,
+      joinMs,
+      speedupX: joinMs > 0 ? +(joinMs / dictMs).toFixed(1) : null,
+      dictRows,
+      joinRows,
+      meta,
+      fallback: fallback[0],
+      explanation: [
+        'dictGet() performs an in-memory hash/array lookup — O(1) per row regardless of dictionary size.',
+        'JOIN requires ClickHouse to build a hash table from the right side and probe it — O(n) setup cost.',
+        'FLAT() layout loads the entire dictionary into a flat array indexed by key — fastest for small dictionaries (<1M keys).',
+        'LIFETIME(MIN 0 MAX 300) — ClickHouse reloads the dictionary from source every 0–300 seconds automatically.',
+        'dictGetOrDefault() returns a fallback value instead of null for missing keys — great for enriching event data with optional metadata.',
+      ],
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ─── SERVER START ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🚀 ClickHouse Explorer API running on :${PORT}`));
+
+
 

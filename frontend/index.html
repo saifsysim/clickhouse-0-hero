@@ -117,6 +117,11 @@
         System Explorer
       </button>
 
+      <button class="nav-item" data-tab="shoppers" onclick="switchTab('shoppers',this)"
+        style="background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(236,72,153,.08));border:1px solid rgba(99,102,241,.2)">
+        🛍️ Shoppers Paradise
+      </button>
+
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
         <svg viewBox="0 0 24 24" fill="none">
@@ -241,32 +246,39 @@
       <div class="start-path">
         <div class="path-step" onclick="switchTab('guide', document.querySelector('[data-tab=guide]'))">
           <div class="path-step-num">1</div>
-          <div class="path-step-body"><strong>Read the Learning Guide</strong><span>8 modules from columnar basics to production patterns</span></div>
+          <div class="path-step-body"><strong>Read the Learning Guide</strong><span>8 modules from columnar basics to
+              production patterns</span></div>
           <div class="path-step-arrow">→</div>
         </div>
         <div class="path-step" onclick="switchTab('mistakes', document.querySelector('[data-tab=mistakes]'))">
           <div class="path-step-num">2</div>
-          <div class="path-step-body"><strong>Avoid the 13 Mistakes</strong><span>The most common ClickHouse pitfalls that trip up every newcomer</span></div>
+          <div class="path-step-body"><strong>Avoid the 13 Mistakes</strong><span>The most common ClickHouse pitfalls
+              that trip up every newcomer</span></div>
           <div class="path-step-arrow">→</div>
         </div>
         <div class="path-step" onclick="switchTab('engines', document.querySelector('[data-tab=engines]'))">
           <div class="path-step-num">3</div>
-          <div class="path-step-body"><strong>Explore DB Engines</strong><span>See MergeTree, SummingMergeTree, ReplacingMergeTree side by side with live data</span></div>
+          <div class="path-step-body"><strong>Explore DB Engines</strong><span>See MergeTree, SummingMergeTree,
+              ReplacingMergeTree side by side with live data</span></div>
           <div class="path-step-arrow">→</div>
         </div>
         <div class="path-step" onclick="switchTab('telemetry', document.querySelector('[data-tab=telemetry]'))">
           <div class="path-step-num">4</div>
-          <div class="path-step-body"><strong>Try the Use Cases</strong><span>Live telemetry, logging &amp; cost dashboards backed by 500k+ real rows</span></div>
+          <div class="path-step-body"><strong>Try the Use Cases</strong><span>Live telemetry, logging &amp; cost
+              dashboards backed by 500k+ real rows</span></div>
           <div class="path-step-arrow">→</div>
         </div>
         <div class="path-step" onclick="switchTab('challenges', document.querySelector('[data-tab=challenges]'))">
           <div class="path-step-num">5</div>
-          <div class="path-step-body"><strong>Solve the SQL Challenges</strong><span>12 hands-on puzzles with hints, solutions, and production context</span></div>
+          <div class="path-step-body"><strong>Solve the SQL Challenges</strong><span>12 hands-on puzzles with hints,
+              solutions, and production context</span></div>
           <div class="path-step-arrow">→</div>
         </div>
-        <div class="path-step path-step-final" onclick="switchTab('interview', document.querySelector('[data-tab=interview]'))">
+        <div class="path-step path-step-final"
+          onclick="switchTab('interview', document.querySelector('[data-tab=interview]'))">
           <div class="path-step-num">🥷</div>
-          <div class="path-step-body"><strong>Nail the Interview Prep</strong><span>20 Q&amp;As — complete all to earn your ClickHouse Ninja certification</span></div>
+          <div class="path-step-body"><strong>Nail the Interview Prep</strong><span>20 Q&amp;As — complete all to earn
+              your ClickHouse Ninja certification</span></div>
           <div class="path-step-arrow">🏁</div>
         </div>
       </div>
@@ -3096,11 +3108,17 @@ GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
 
     </section><!-- end tab-dba -->
 
+    <!-- ─── SHOPPERS PARADISE ──────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-shoppers">
+      <div id="shoppers-root"></div>
+    </section><!-- end tab-shoppers -->
+
   </main>
 
   <script src="app.js"></script>
   <script src="learn.js"></script>
   <script src="features.js"></script>
+  <script src="shoppers.js"></script>
 </body>
 
 </html>
