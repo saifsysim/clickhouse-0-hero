@@ -537,6 +537,194 @@ async function spRun10() {
           </div>`).join('')}
       </div>
 
+      <!-- ── How This Is Handled: PostgreSQL vs ClickHouse ─────────────────── -->
+      <div class="sp-section-title">📚 Learning: PostgreSQL vs ClickHouse — Same Problem, Different Approach</div>
+
+      <!-- Problem Statement -->
+      <div class="sp-pf-scenario-block sp-pf-problem">
+        <div class="sp-pf-scenario-label">🎯 The Problem</div>
+        <p class="sp-pf-scenario-desc">
+          A browser extension fires a page-view event every time a user browses a shopping site.
+          When that user lands on your homepage, you want to show them a ranked feed of the most
+          relevant domains and categories — <strong>based on their most recent activity</strong>.
+          The feed must be fresh. A stale feed shows the wrong things.
+        </p>
+        <div class="sp-pf-flow-box">
+          <span class="sp-pf-flow-node sp-pf-flow-src">🖥️ Browser Extension<br><small>fires events live</small></span>
+          <span class="sp-pf-flow-arrow">→</span>
+          <span class="sp-pf-flow-node sp-pf-flow-store">📦 Event Store<br><small>page_views table</small></span>
+          <span class="sp-pf-flow-arrow">→</span>
+          <span class="sp-pf-flow-node sp-pf-flow-agg">⚙️ Aggregation<br><small>???</small></span>
+          <span class="sp-pf-flow-arrow">→</span>
+          <span class="sp-pf-flow-node sp-pf-flow-feed">🏠 Homepage Feed<br><small>ranked results</small></span>
+        </div>
+      </div>
+
+      <div class="sp-pf-compare-wrap">
+
+        <!-- PostgreSQL Side -->
+        <div class="sp-pf-compare-side sp-pf-pg">
+          <div class="sp-pf-compare-header">
+            <span class="sp-pf-compare-badge">🐘 PostgreSQL</span>
+            <span class="sp-pf-compare-sub">Traditional approach</span>
+          </div>
+
+          <div class="sp-pf-compare-section">How aggregation works</div>
+          <div class="sp-anim-pipeline sp-anim-pg">
+            <div class="sp-anim-step" style="--d:0s">🖥️ Extension fires event</div>
+            <div class="sp-anim-arrow sp-anim-arrow-bad">↓ <small>lands in raw table</small></div>
+            <div class="sp-anim-step" style="--d:.15s">📦 page_views (50k+ rows)</div>
+            <div class="sp-anim-arrow sp-anim-arrow-bad">↓ <small>⏳ wait for cron…</small></div>
+            <div class="sp-anim-step sp-anim-cron" style="--d:.3s">⏰ Cron fires (every 5 min)<br><small>Full table scan + UPSERT</small></div>
+            <div class="sp-anim-arrow sp-anim-arrow-bad">↓ <small>stale result written</small></div>
+            <div class="sp-anim-step" style="--d:.45s">👤 user_profile (summary)</div>
+            <div class="sp-anim-arrow">↓</div>
+            <div class="sp-anim-step sp-anim-feed-bad" style="--d:.6s">🏠 Homepage feed<br><small style="color:#ef4444">Up to 5 min stale</small></div>
+          </div>
+
+          <div class="sp-pf-compare-section">The code you'd write</div>
+          <pre class="sp-pf-code">-- 1. Raw events table
+CREATE TABLE page_views (
+  user_id TEXT, domain TEXT,
+  category TEXT, dwell_ms INT,
+  viewed_at TIMESTAMPTZ
+);
+
+-- 2. Summary table (manually managed)
+CREATE TABLE user_profile (
+  user_id TEXT, domain TEXT,
+  category TEXT, view_count INT,
+  total_dwell_ms BIGINT,
+  last_seen TIMESTAMPTZ,
+  PRIMARY KEY (user_id, domain, category)
+);
+
+-- 3. Cron job (runs every 5 min via pg_cron)
+SELECT cron.schedule('*/5 * * * *', $$
+  INSERT INTO user_profile
+    (user_id, domain, category, view_count,
+     total_dwell_ms, last_seen)
+  SELECT user_id, domain, category,
+    COUNT(*), SUM(dwell_ms), MAX(viewed_at)
+  FROM page_views
+  WHERE viewed_at > now() - INTERVAL '7 days'
+  GROUP BY user_id, domain, category
+  ON CONFLICT (user_id, domain, category)
+  DO UPDATE SET
+    view_count    = user_profile.view_count
+                  + EXCLUDED.view_count,
+    total_dwell_ms= user_profile.total_dwell_ms
+                  + EXCLUDED.total_dwell_ms,
+    last_seen     = GREATEST(user_profile.last_seen,
+                             EXCLUDED.last_seen);
+$$);</pre>
+
+          <div class="sp-pf-compare-section">Limitations</div>
+          <ul class="sp-pf-limits">
+            <li>Feed is always 0–5 min stale — cron interval is the floor</li>
+            <li>Full table scan per cron run (grows with data volume)</li>
+            <li>UPSERT logic is fragile — race conditions at high insert rates</li>
+            <li>Adding a new dimension (hour-of-day) means rewriting the cron and backfilling</li>
+            <li>If the cron misses a run, catch-up logic needed</li>
+            <li>Separate infrastructure: pg_cron, worker process, or external scheduler</li>
+          </ul>
+        </div>
+
+        <!-- ClickHouse Side -->
+        <div class="sp-pf-compare-side sp-pf-ch">
+          <div class="sp-pf-compare-header">
+            <span class="sp-pf-compare-badge sp-pf-ch-badge">⚡ ClickHouse</span>
+            <span class="sp-pf-compare-sub">This demo</span>
+          </div>
+
+          <div class="sp-pf-compare-section">How aggregation works</div>
+          <div class="sp-anim-pipeline sp-anim-ch">
+            <div class="sp-anim-step sp-anim-step-ch" style="--d:0s">🖥️ Extension fires event</div>
+            <div class="sp-anim-arrow sp-anim-arrow-good">↓ <small>async INSERT (fire-and-forget)</small></div>
+            <div class="sp-anim-step sp-anim-step-ch" style="--d:.15s">📦 page_views (raw events)</div>
+            <div class="sp-anim-arrow sp-anim-arrow-good">↓ <small>⚡ MV trigger fires instantly on new rows</small></div>
+            <div class="sp-anim-step sp-anim-step-ch sp-anim-mv" style="--d:.3s">🧠 MV writes partial states<br><small>countState · sumState · maxState</small></div>
+            <div class="sp-anim-arrow sp-anim-arrow-good">↓ <small>append-only, no conflict</small></div>
+            <div class="sp-anim-step sp-anim-step-ch" style="--d:.45s">📊 pv_user_profile (AggMT)</div>
+            <div class="sp-anim-arrow sp-anim-arrow-good">↓ <small>countMerge() finalises at query time</small></div>
+            <div class="sp-anim-step sp-anim-step-ch sp-anim-feed-good" style="--d:.6s">🏠 Homepage feed<br><small style="color:#10b981">Always current — zero lag</small></div>
+          </div>
+
+          <div class="sp-pf-compare-section">The code you'd write</div>
+          <pre class="sp-pf-code">-- 1. Raw events table (identical concept)
+CREATE TABLE page_views (
+  user_id String, domain String,
+  category LowCardinality(String),
+  dwell_ms UInt32, viewed_at DateTime
+) ENGINE = MergeTree()
+ORDER BY (user_id, domain, viewed_at);
+
+-- 2. Pre-aggregation target (AggMT)
+CREATE TABLE pv_user_profile (
+  user_id String, domain String,
+  category LowCardinality(String),
+  -- Partial states, not final numbers
+  view_count     AggregateFunction(count, UInt8),
+  total_dwell_ms AggregateFunction(sum,   UInt32),
+  last_seen      AggregateFunction(max,   DateTime)
+) ENGINE = AggregatingMergeTree()
+ORDER BY (user_id, domain, category);
+
+-- 3. Materialized View — written ONCE, runs forever
+-- No cron. No scheduler. Fires on every INSERT.
+CREATE MATERIALIZED VIEW pv_mv
+TO pv_user_profile AS
+SELECT user_id, domain, category,
+  countState()        AS view_count,
+  sumState(dwell_ms)  AS total_dwell_ms,
+  maxState(viewed_at) AS last_seen
+FROM page_views
+GROUP BY user_id, domain, category;
+
+-- 4. Homepage query — reads AggMT, not raw rows
+SELECT domain, category,
+  countMerge(view_count)       AS views,
+  maxMerge(last_seen)          AS last_seen
+FROM pv_user_profile
+WHERE user_id = 'user_001'
+GROUP BY domain, category
+ORDER BY views DESC LIMIT 10;</pre>
+
+          <div class="sp-pf-compare-section">Why it works better</div>
+          <ul class="sp-pf-limits sp-pf-wins">
+            <li>Feed updates the moment an INSERT lands — zero scheduled delay</li>
+            <li>MV only processes new rows (delta), not the full table</li>
+            <li>Partial states are append-only — no UPSERT, no lock contention</li>
+            <li>New dimension? Add a column to the MV and query immediately</li>
+            <li>MV is self-healing — if ClickHouse restarts, it catches up automatically</li>
+            <li>No separate infrastructure — MV is a first-class ClickHouse object</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Side-by-side table -->
+      <div class="sp-section-title" style="margin-top:16px">📊 At a Glance</div>
+      <table class="sp-tbl">
+        <thead><tr><th>Dimension</th><th>🐘 PostgreSQL + cron</th><th>⚡ ClickHouse MV + AggMT</th></tr></thead>
+        <tbody>
+          ${[
+        ['Feed freshness', 'Up to 5 min stale', 'Instant — updates on each INSERT'],
+        ['Aggregation cost', 'Full table scan per cron run', 'Delta only — new rows processed once'],
+        ['Write pattern', 'UPSERT (conflict resolution needed)', 'Append partial state (no conflicts)'],
+        ['Scale ceiling', 'Cron takes longer as data grows', 'AggMT row count stays flat — stays fast'],
+        ['Flexibility', 'New dimension = rewrite + backfill', 'New column in MV, query immediately'],
+        ['Infrastructure', 'pg_cron / external scheduler required', 'Built into ClickHouse, zero extra setup'],
+        ['Data model', 'Final numbers stored', 'Partial states — merged at query time'],
+      ].map(([dim, pg, ch]) => `
+            <tr>
+              <td class="sp-cell" style="font-weight:600;color:var(--text2)">${dim}</td>
+              <td class="sp-cell" style="color:#ef4444">${pg}</td>
+              <td class="sp-cell" style="color:#10b981">${ch}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="sp-insight" style="margin-top:8px">💡 <strong>Try it:</strong> click <em>⚡ Simulate 25 Extension Events</em> above — watch the feed update in under a second. No cron fired. The MV triggered on that one INSERT and the AggMT updated immediately.</div>
+
       <div class="sp-section-title">⚡ Benchmark: AggMT vs Raw Table Scan</div>
       <div class="sp-bench-compare">
         <div class="sp-bench-side ${b.aggMs <= b.rawMs ? 'sp-bench-winner' : ''}">
@@ -554,10 +742,11 @@ async function spRun10() {
       </div>
     `;
 
+
     // Update the user select reference
     document.getElementById('sp-pf-user')?.addEventListener('change', spRun10);
   } catch (e) {
-    document.getElementById('sp-body-10').innerHTML = `<div class="sp-error">⚠️ ${e.message}</div>`;
+    document.getElementById('sp-body-10').innerHTML = `< div class="sp-error" >⚠️ ${e.message}</div > `;
   }
 }
 
@@ -574,7 +763,6 @@ async function spSimulatePageViews() {
     })).json();
     if (d.error) throw new Error(d.error);
     if (status) status.textContent = `✅ ${d.inserted} events fired via async insert in ${d.ms}ms — feed updating…`;
-    // Wait a moment for the MV to process then refresh
     setTimeout(spRun10, 600);
   } catch (e) {
     if (status) status.textContent = `⚠️ ${e.message}`;
@@ -660,7 +848,7 @@ function spDrawFlowLines() {
   const wBox = wrap.getBoundingClientRect();
   svg.setAttribute('width', wBox.width);
   svg.setAttribute('height', wBox.height);
-  svg.setAttribute('viewBox', `0 0 ${wBox.width} ${wBox.height}`);
+  svg.setAttribute('viewBox', `0 0 ${wBox.width} ${wBox.height} `);
 
   // right-center exit of a node
   const rMid = id => {
@@ -682,21 +870,22 @@ function spDrawFlowLines() {
     const cx = (a.x + b.x) / 2;
     const col = opts.color || '#6366f1';
     const w = opts.width || 2.5;
-    const dash = opts.dashed ? `stroke-dasharray="${opts.dashed}"` : '';
-    const mid = opts.marker !== false ? `marker-end="url(#fmk-${col.replace('#', '')}"` : '';
-    return `<path d="M${a.x},${a.y} C${cx},${a.y} ${cx},${b.y} ${b.x},${b.y}"
-      stroke="${col}" stroke-width="${w}" fill="none" stroke-linecap="round"
-      ${dash} marker-end="url(#fmk-${col.replace('#', '')})"
-      data-from="${fromId}" data-to="${toId}" style="transition:opacity .25s,stroke-width .25s"/>`;
+    const dash = opts.dashed ? `stroke - dasharray="${opts.dashed}"` : '';
+    const mid = opts.marker !== false ? `marker - end="url(#fmk-${col.replace('#', '')}"` : '';
+    return `< path d = "M${a.x},${a.y} C${cx},${a.y} ${cx},${b.y} ${b.x},${b.y}"
+    stroke = "${col}" stroke - width="${w}" fill = "none" stroke - linecap="round"
+      ${dash} marker - end="url(#fmk-${col.replace('#', '')})"
+    data - from="${fromId}" data - to="${toId}" style = "transition:opacity .25s,stroke-width .25s" /> `;
   };
 
   // defs with larger arrowheads
-  const defs = `<defs>
-    ${['6366f1', 'f97316', '8b5cf6', 'f9c74f', 'ec4899', '10b981'].map(c => `
+  const defs = `< defs >
+      ${['6366f1', 'f97316', '8b5cf6', 'f9c74f', 'ec4899', '10b981'].map(c => `
     <marker id="fmk-${c}" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
       <path d="M0,0 L0,9 L9,4.5 z" fill="#${c}"/>
-    </marker>`).join('')}
-  </defs>`;
+    </marker>`).join('')
+    }
+  </defs > `;
 
   const paths = [
     // Sources → Tables (solid, indigo/orange/purple)
@@ -741,20 +930,20 @@ async function initShoppers() {
   // Check seed status
   let seedRows = [];
   try {
-    const s = await (await fetch(`${SP_API}/shoppers/seed-status`)).json();
+    const s = await (await fetch(`${SP_API} /shoppers/seed - status`)).json();
     seedRows = Array.isArray(s) ? s : [];
   } catch (e) { /* offline */ }
 
   const seeded = seedRows.some(r => Number(r.rows?.replace(/[^0-9.]/g, '')) > 0);
   const seedBanner = seeded
-    ? `<div class="sp-seed-ok">✅ Shoppers Paradise data loaded — ${seedRows.map(r => `<strong>${r.tbl}</strong> (${r.rows})`).join(', ')}</div>`
-    : `<div class="sp-seed-warn">⚠️ Tables not seeded yet. Run: <code>docker exec clickhouse-backend node seed.js</code> or restart the stack. Then refresh.</div>`;
+    ? `< div class="sp-seed-ok" >✅ Shoppers Paradise data loaded — ${seedRows.map(r => `<strong>${r.tbl}</strong> (${r.rows})`).join(', ')}</div > `
+    : `< div class="sp-seed-warn" >⚠️ Tables not seeded yet.Run: <code>docker exec clickhouse-backend node seed.js</code> or restart the stack.Then refresh.</div > `;
 
   const categories = ['Electronics', 'Clothing', 'Home & Garden', 'Sports', 'Beauty', 'Toys', 'Grocery', 'Automotive'];
-  const catOptions = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  const catOptions = categories.map(c => `< option value = "${c}" > ${c}</option > `).join('');
 
   el.innerHTML = `
-      <!-- Hero Header -->
+      < !--Hero Header-- >
       <div class="sp-hero">
         <div class="sp-hero-badge">🛍️ Real-World Scenario</div>
         <h2 class="sp-hero-title">Shoppers Paradise</h2>
@@ -768,7 +957,7 @@ async function initShoppers() {
         ${seedBanner}
       </div>
 
-      <!-- Flow Diagram: 4-col with JS-overlay SVG + click-to-highlight -->
+      <!--Flow Diagram: 4 - col with JS - overlay SVG + click - to - highlight-- >
       <div class="spf-wrap glass">
         <div class="spf-header">
           <div class="spf-title">🗺️ Data Flow — From Source to Insight</div>
@@ -795,48 +984,48 @@ async function initShoppers() {
             <div class="spf-node spf-merge" id="fn-ce" data-node="fn-ce">sp_coupon_events<br><small>MergeTree · 43k rows</small></div>
             <div class="spf-node spf-merge" id="fn-cb" data-node="fn-cb">sp_cashback_events<br><small>MergeTree · 20k rows</small></div>
             <div class="spf-node spf-merge" id="fn-us" data-node="fn-us">sp_user_sessions<br><small>MergeTree · 40k rows</small></div>
-            <div class="spf-node spf-rmt"   id="fn-vf" data-node="fn-vf">sp_vendor_feed<br><small>ReplacingMT · 300</small></div>
-            <div class="spf-node spf-rmt"   id="fn-pc" data-node="fn-pc">sp_product_catalog<br><small>ReplacingMT · 30</small></div>
+            <div class="spf-node spf-rmt" id="fn-vf" data-node="fn-vf">sp_vendor_feed<br><small>ReplacingMT · 300</small></div>
+            <div class="spf-node spf-rmt" id="fn-pc" data-node="fn-pc">sp_product_catalog<br><small>ReplacingMT · 30</small></div>
             <div class="spf-node spf-async" id="fn-af" data-node="fn-af">sp_async_feed_demo<br><small>ReplacingMT (async)</small></div>
           </div>
 
           <!-- Col 3: Pre-Aggregation -->
           <div class="spf-col">
             <div class="spf-col-lbl">Pre-Aggregation</div>
-            <div class="spf-node spf-agg"  id="fn-agg"  data-node="fn-agg">sp_price_hourly_agg<br><small>AggregatingMergeTree</small><br><small style="opacity:.7">countState · avgState · uniqState</small></div>
-            <div class="spf-node spf-dict" id="fn-dict" data-node="fn-dict">product_dict<br><small>HASHED Dictionary</small><br><small style="opacity:.7">sku_id → brand · rating</small></div>
+            <div class="spf-node spf-agg" id="fn-agg" data-node="fn-agg">sp_price_hourly_agg<br><small>AggregatingMergeTree</small><br><small style="opacity:.7">countState · avgState · uniqState</small></div>
+              <div class="spf-node spf-dict" id="fn-dict" data-node="fn-dict">product_dict<br><small>HASHED Dictionary</small><br><small style="opacity:.7">sku_id → brand · rating</small></div>
+              </div>
+
+              <!-- Col 4: Use Cases -->
+              <div class="spf-col">
+                <div class="spf-col-lbl">9 Use Cases</div>
+                <div class="spf-node spf-uc spf-uc-merge" id="fn-uc1" data-node="fn-uc1">💰 Price Intelligence<br><small>PARTITION + HAVING</small></div>
+                <div class="spf-node spf-uc spf-uc-merge" id="fn-uc2" data-node="fn-uc2">🎟️ Coupon Funnel<br><small>countIf() single pass</small></div>
+                <div class="spf-node spf-uc spf-uc-merge" id="fn-uc3" data-node="fn-uc3">💸 Cashback ROI<br><small>columnar aggregation</small></div>
+                <div class="spf-node spf-uc spf-uc-merge" id="fn-uc4" data-node="fn-uc4">👤 User Behavior<br><small>LIMIT N BY segment</small></div>
+                <div class="spf-node spf-uc spf-uc-rmt" id="fn-uc5" data-node="fn-uc5">📡 Vendor Feed<br><small>ReplacingMT + FINAL</small></div>
+                <div class="spf-node spf-uc spf-uc-rmt" id="fn-uc6" data-node="fn-uc6">📦 Catalog Intelligence<br><small>freshness scoring</small></div>
+                <div class="spf-node spf-uc spf-uc-agg" id="fn-uc7" data-node="fn-uc7">⚡ Live Dashboards<br><small>AggMT *Merge()</small></div>
+                <div class="spf-node spf-uc spf-uc-async" id="fn-uc8" data-node="fn-uc8">🚀 Async Inserts<br><small>buffer + dedup</small></div>
+                <div class="spf-node spf-uc spf-uc-dict" id="fn-uc9" data-node="fn-uc9">📖 Dictionaries<br><small>dictGet() vs JOIN</small></div>
+              </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="spf-legend">
+              <span class="spf-pill spf-merge">MergeTree</span>
+              <span class="spf-pill spf-rmt">ReplacingMergeTree</span>
+              <span class="spf-pill spf-agg">AggregatingMergeTree</span>
+              <span class="spf-pill spf-dict">Dictionary</span>
+              <span class="spf-pill spf-async">Async Insert</span>
+              <span class="spf-pill" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.15);color:var(--text3)">── solid = INSERT &nbsp;·&nbsp; - - dashed = MV/Dict</span>
+            </div>
           </div>
 
-          <!-- Col 4: Use Cases -->
-          <div class="spf-col">
-            <div class="spf-col-lbl">9 Use Cases</div>
-            <div class="spf-node spf-uc spf-uc-merge" id="fn-uc1" data-node="fn-uc1">💰 Price Intelligence<br><small>PARTITION + HAVING</small></div>
-            <div class="spf-node spf-uc spf-uc-merge" id="fn-uc2" data-node="fn-uc2">🎟️ Coupon Funnel<br><small>countIf() single pass</small></div>
-            <div class="spf-node spf-uc spf-uc-merge" id="fn-uc3" data-node="fn-uc3">💸 Cashback ROI<br><small>columnar aggregation</small></div>
-            <div class="spf-node spf-uc spf-uc-merge" id="fn-uc4" data-node="fn-uc4">👤 User Behavior<br><small>LIMIT N BY segment</small></div>
-            <div class="spf-node spf-uc spf-uc-rmt"   id="fn-uc5" data-node="fn-uc5">📡 Vendor Feed<br><small>ReplacingMT + FINAL</small></div>
-            <div class="spf-node spf-uc spf-uc-rmt"   id="fn-uc6" data-node="fn-uc6">📦 Catalog Intelligence<br><small>freshness scoring</small></div>
-            <div class="spf-node spf-uc spf-uc-agg"   id="fn-uc7" data-node="fn-uc7">⚡ Live Dashboards<br><small>AggMT *Merge()</small></div>
-            <div class="spf-node spf-uc spf-uc-async" id="fn-uc8" data-node="fn-uc8">🚀 Async Inserts<br><small>buffer + dedup</small></div>
-            <div class="spf-node spf-uc spf-uc-dict"  id="fn-uc9" data-node="fn-uc9">📖 Dictionaries<br><small>dictGet() vs JOIN</small></div>
-          </div>
-        </div>
 
-        <!-- Legend -->
-        <div class="spf-legend">
-          <span class="spf-pill spf-merge">MergeTree</span>
-          <span class="spf-pill spf-rmt">ReplacingMergeTree</span>
-          <span class="spf-pill spf-agg">AggregatingMergeTree</span>
-          <span class="spf-pill spf-dict">Dictionary</span>
-          <span class="spf-pill spf-async">Async Insert</span>
-          <span class="spf-pill" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.15);color:var(--text3)">── solid = INSERT &nbsp;·&nbsp; - - dashed = MV/Dict</span>
-        </div>
-      </div>
-
-
-      <!-- Use Case Nav -->
-      <div class="sp-nav">
-        ${[
+          <!-- Use Case Nav -->
+          <div class="sp-nav">
+            ${[
       ['💰', 'Price Intelligence'],
       ['🎟️', 'Coupon Effectiveness'],
       ['💸', 'Cashback Attribution'],
@@ -851,10 +1040,10 @@ async function initShoppers() {
           <button class="sp-nav-btn" onclick="document.getElementById('sp-card-${i + 1}').scrollIntoView({behavior:'smooth',block:'start'})">
             <span class="sp-nav-icon">${icon}</span><span>${label}</span>
           </button>`).join('')}
-      </div>
+          </div>
 
-      <!-- USE CASE 1: Price Intelligence -->
-      ${spCard(1,
+          <!-- USE CASE 1: Price Intelligence -->
+          ${spCard(1,
       'Price Intelligence & Trend Analysis', '💰',
       'Detect price drops, compare vendors, track pricing trends across 10 vendors in real-time',
       'MergeTree + PARTITION BY', '#6366f1',
@@ -873,14 +1062,14 @@ ORDER BY pct_drop DESC
 LIMIT 10`),
       'sp-body-1'
     )}
-      <div class="sp-controls glass" style="margin-bottom:8px">
-        <label class="sp-ctrl-label">Category:</label>
-        <select id="sp-cat-select" class="sp-select">${catOptions}</select>
-        <button class="btn" onclick="spRun1()" style="margin-left:8px">Apply</button>
-      </div>
+          <div class="sp-controls glass" style="margin-bottom:8px">
+            <label class="sp-ctrl-label">Category:</label>
+            <select id="sp-cat-select" class="sp-select">${catOptions}</select>
+            <button class="btn" onclick="spRun1()" style="margin-left:8px">Apply</button>
+          </div>
 
-      <!-- USE CASE 2: Coupon Effectiveness -->
-      ${spCard(2,
+          <!-- USE CASE 2: Coupon Effectiveness -->
+          ${spCard(2,
       'Coupon & Deal Effectiveness', '🎟️',
       'Track the full coupon funnel: seen → clicked → applied → converted. Find which coupons actually work.',
       'MergeTree + countIf()', '#8b5cf6',
@@ -900,8 +1089,8 @@ ORDER BY converted DESC`),
       'sp-body-2'
     )}
 
-      <!-- USE CASE 3: Cashback Attribution -->
-      ${spCard(3,
+          <!-- USE CASE 3: Cashback Attribution -->
+          ${spCard(3,
       'Cashback & Rewards Attribution', '💸',
       'Track affiliate ROI: how much cashback was paid vs. affiliate revenue earned. Detect leakage.',
       'MergeTree + JOIN patterns', '#ec4899',
@@ -921,8 +1110,8 @@ ORDER BY total_gmv DESC`),
       'sp-body-3'
     )}
 
-      <!-- USE CASE 4: User Behavior -->
-      ${spCard(4,
+          <!-- USE CASE 4: User Behavior -->
+          ${spCard(4,
       'User Behavior & Personalization', '👤',
       'Understand your 4 shopper personas. Cross-vendor journeys, price sensitivity, conversion by segment.',
       'MergeTree + LIMIT N BY', '#f97316',
@@ -939,8 +1128,8 @@ LIMIT 3 BY user_segment  -- ClickHouse top-N-per-group`),
       'sp-body-4'
     )}
 
-      <!-- USE CASE 5: Vendor Feed -->
-      ${spCard(5,
+          <!-- USE CASE 5: Vendor Feed -->
+          ${spCard(5,
       'Real-Time Vendor Feed Ingestion', '📡',
       'Simulate live vendor price updates. ReplacingMergeTree deduplicates stale data — only the latest price per vendor+SKU survives.',
       'ReplacingMergeTree(feed_version)', '#14b8a6',
@@ -956,30 +1145,30 @@ WHERE sku_id = 'SKU00001'
 ORDER BY price_usd ASC`),
       'sp-body-5'
     )}
-      <div class="sp-controls glass" style="margin-bottom:8px">
-        <label class="sp-ctrl-label">Vendor:</label>
-        <select id="sp-feed-vendor" class="sp-select">
-          <option value="amzn">Amazon</option><option value="wmt">Walmart</option>
-          <option value="tgt">Target</option><option value="bby">Best Buy</option>
-          <option value="cost">Costco</option><option value="ebay">eBay</option>
-          <option value="wfair">Wayfair</option><option value="nke">Nike.com</option>
-        </select>
-        <label class="sp-ctrl-label">SKU:</label>
-        <select id="sp-feed-sku" class="sp-select">
-          ${Array.from({ length: 10 }, (_, i) => `<option value="SKU${String(i + 1).padStart(5, '0')}">SKU${String(i + 1).padStart(5, '0')}</option>`).join('')}
-        </select>
-        <label class="sp-ctrl-label">Price $:</label>
-        <input id="sp-feed-price" type="number" class="sp-input" value="79.99" step="0.01" min="1" style="width:90px">
-        <label class="sp-ctrl-label">In Stock:</label>
-        <select id="sp-feed-stock" class="sp-select" style="width:80px">
-          <option value="1">Yes</option><option value="0">No</option>
-        </select>
-        <button class="btn" onclick="spInsertFeed()" style="margin-left:8px;background:linear-gradient(135deg,#10b981,#059669)">📡 Insert Feed Row</button>
-        <div id="sp-feed-result" style="margin-top:8px;font-size:12px"></div>
-      </div>
+          <div class="sp-controls glass" style="margin-bottom:8px">
+            <label class="sp-ctrl-label">Vendor:</label>
+            <select id="sp-feed-vendor" class="sp-select">
+              <option value="amzn">Amazon</option><option value="wmt">Walmart</option>
+              <option value="tgt">Target</option><option value="bby">Best Buy</option>
+              <option value="cost">Costco</option><option value="ebay">eBay</option>
+              <option value="wfair">Wayfair</option><option value="nke">Nike.com</option>
+            </select>
+            <label class="sp-ctrl-label">SKU:</label>
+            <select id="sp-feed-sku" class="sp-select">
+              ${Array.from({ length: 10 }, (_, i) => `<option value="SKU${String(i + 1).padStart(5, '0')}">SKU${String(i + 1).padStart(5, '0')}</option>`).join('')}
+            </select>
+            <label class="sp-ctrl-label">Price $:</label>
+            <input id="sp-feed-price" type="number" class="sp-input" value="79.99" step="0.01" min="1" style="width:90px">
+              <label class="sp-ctrl-label">In Stock:</label>
+              <select id="sp-feed-stock" class="sp-select" style="width:80px">
+                <option value="1">Yes</option><option value="0">No</option>
+              </select>
+              <button class="btn" onclick="spInsertFeed()" style="margin-left:8px;background:linear-gradient(135deg,#10b981,#059669)">📡 Insert Feed Row</button>
+              <div id="sp-feed-result" style="margin-top:8px;font-size:12px"></div>
+          </div>
 
-      <!-- USE CASE 6: Catalog Intelligence -->
-      ${spCard(6,
+          <!-- USE CASE 6: Catalog Intelligence -->
+          ${spCard(6,
       'Product Catalog Intelligence', '📦',
       'Brand market share, category depth, data freshness scoring, top-rated products — all from a deduplicated ReplacingMergeTree.',
       'ReplacingMergeTree + FINAL', '#a3e635',
@@ -997,8 +1186,8 @@ LIMIT 10`),
       'sp-body-6'
     )}
 
-      <!-- USE CASE 7: Live Dashboards (MV) -->
-      ${spCard(7,
+          <!-- USE CASE 7: Live Dashboards (MV) -->
+          ${spCard(7,
       'Materialized Views for Live Dashboards', '⚡',
       'Pre-aggregate price data as it lands. Dashboards query AggregatingMergeTree partial states — not raw rows. Compare raw vs. MV query times.',
       'AggregatingMergeTree + MV', '#f9c74f',
@@ -1023,14 +1212,14 @@ WHERE category = 'Electronics' AND hour >= now() - INTERVAL 7 DAY
 GROUP BY hour, vendor_id ORDER BY hour DESC`),
       'sp-body-7'
     )}
-      <div class="sp-controls glass" style="margin-bottom:8px">
-        <label class="sp-ctrl-label">Category:</label>
-        <select id="sp-mv-cat-select" class="sp-select">${catOptions}</select>
-        <button class="btn" onclick="spRun7()" style="margin-left:8px">Apply</button>
-      </div>
+          <div class="sp-controls glass" style="margin-bottom:8px">
+            <label class="sp-ctrl-label">Category:</label>
+            <select id="sp-mv-cat-select" class="sp-select">${catOptions}</select>
+            <button class="btn" onclick="spRun7()" style="margin-left:8px">Apply</button>
+          </div>
 
-      <!-- USE CASE 8: Async Inserts -->
-      ${spCard(8,
+          <!-- USE CASE 8: Async Inserts -->
+          ${spCard(8,
       'Async Inserts + Deduplication', '🚀',
       'High-throughput fire-and-forget writes: ClickHouse buffers inserts server-side, flushes in batches, and deduplicates retried blocks automatically.',
       'async_insert + dedup', '#6366f1',
@@ -1051,13 +1240,13 @@ WHERE table = 'sp_async_feed_demo'
 ORDER BY event_time DESC LIMIT 10`),
       'sp-body-8'
     )}
-      <div class="sp-insight" style="margin:8px 0 16px">
-        💡 Click <strong>Run Query</strong> to fire 2 identical batches of 25 rows.
-        The second batch is deduplicated — only 25 rows land in the database.
-      </div>
+          <div class="sp-insight" style="margin:8px 0 16px">
+            💡 Click <strong>Run Query</strong> to fire 2 identical batches of 25 rows.
+            The second batch is deduplicated — only 25 rows land in the database.
+          </div>
 
-      <!-- USE CASE 9: Dictionaries -->
-      ${spCard(9,
+          <!-- USE CASE 9: Dictionaries -->
+          ${spCard(9,
       'Dictionaries — Fast Key-Value Enrichment', '📖',
       'Load reference data (product catalog) into memory as a dictionary. Enrich 60k price events with brand/category using O(1) dictGet() instead of a JOIN.',
       'CREATE DICTIONARY + FLAT()', '#ec4899',
@@ -1091,8 +1280,8 @@ SELECT dictGetOrDefault('demo.product_dict', 'brand', 'SKU_UNKNOWN', 'N/A');`),
       'sp-body-9'
     )}
 
-      <!-- USE CASE 10: Personalization Feed -->
-      ${spCard(10,
+          <!-- USE CASE 10: Personalization Feed -->
+          ${spCard(10,
       'Personalization Feed — Extension Events → Real-Time Homepage', '🧠',
       'Browser extension streams page views → MV aggregates on INSERT → homepage queries AggMT for a ranked feed. Zero cron, sub-millisecond latency, flexible filters.',
       'AggregatingMergeTree + Materialized View', '#a855f7',
@@ -1122,19 +1311,19 @@ ORDER BY relevance_score DESC LIMIT 10;`),
       'sp-body-10'
     )}
 
-      <div class="sp-footer glass">
-        <div class="sp-footer-title">🛍️ Shoppers Paradise — ClickHouse Architecture</div>
-        <div class="sp-footer-grid">
-          <div><strong>sp_price_events</strong><br><span>MergeTree — 60k rows</span></div>
-          <div><strong>sp_coupon_events</strong><br><span>MergeTree — ~35k rows</span></div>
-          <div><strong>sp_cashback_events</strong><br><span>MergeTree — 20k rows</span></div>
-          <div><strong>sp_user_sessions</strong><br><span>MergeTree — 40k rows</span></div>
-          <div><strong>sp_vendor_feed</strong><br><span>ReplacingMergeTree — 300 rows</span></div>
-          <div><strong>sp_product_catalog</strong><br><span>ReplacingMergeTree — 30 rows</span></div>
-          <div><strong>sp_price_hourly_agg</strong><br><span>AggregatingMergeTree (MV target)</span></div>
-          <div><strong>mv_sp_price_hourly</strong><br><span>Materialized View trigger</span></div>
-        </div>
-      </div>`;
+          <div class="sp-footer glass">
+            <div class="sp-footer-title">🛍️ Shoppers Paradise — ClickHouse Architecture</div>
+            <div class="sp-footer-grid">
+              <div><strong>sp_price_events</strong><br><span>MergeTree — 60k rows</span></div>
+              <div><strong>sp_coupon_events</strong><br><span>MergeTree — ~35k rows</span></div>
+              <div><strong>sp_cashback_events</strong><br><span>MergeTree — 20k rows</span></div>
+              <div><strong>sp_user_sessions</strong><br><span>MergeTree — 40k rows</span></div>
+              <div><strong>sp_vendor_feed</strong><br><span>ReplacingMergeTree — 300 rows</span></div>
+              <div><strong>sp_product_catalog</strong><br><span>ReplacingMergeTree — 30 rows</span></div>
+              <div><strong>sp_price_hourly_agg</strong><br><span>AggregatingMergeTree (MV target)</span></div>
+              <div><strong>mv_sp_price_hourly</strong><br><span>Materialized View trigger</span></div>
+            </div>
+          </div>`;
   // Draw flow diagram connections after layout settles
   requestAnimationFrame(() => requestAnimationFrame(spDrawFlowLines));
 }
