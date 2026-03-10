@@ -2087,7 +2087,6 @@ app.get('/api/shoppers/dictionaries', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // GET /api/shoppers/personalization-feed?user_id=user_001&limit=10
-// Returns the ranked homepage feed for a given user from the AggMT
 app.get('/api/shoppers/personalization-feed', async (req, res) => {
   const userId = req.query.user_id || 'user_001';
   const limit = Math.min(parseInt(req.query.limit) || 10, 50);
@@ -2095,85 +2094,79 @@ app.get('/api/shoppers/personalization-feed', async (req, res) => {
   try {
     const t0 = Date.now();
 
-    // Query 1: ranked feed from AggMT (what the homepage calls)
-    const feedRows = await queryRows(`
-      SELECT
-        domain,
-        category,
-        countMerge(view_count)           AS views,
-        round(sumMerge(total_dwell_ms) / 1000.0, 1)  AS total_dwell_sec,
-        round(sumMerge(total_dwell_ms) / countMerge(view_count) / 1000.0, 1) AS avg_dwell_sec,
-        formatDateTime(maxMerge(last_seen), '%Y-%m-%d %H:%i') AS last_seen,
-        uniqMerge(unique_products)       AS unique_products,
-        round(countMerge(view_count) * 10.0 /
-          (1 + dateDiff('hour', maxMerge(last_seen), now())), 2) AS relevance_score
-      FROM demo.pv_user_profile
-      WHERE user_id = '${userId}'
-      GROUP BY domain, category
-      ORDER BY relevance_score DESC
-      LIMIT ${limit}
-    `);
+    // Query 1: AggMT feed — pull raw Merge values, compute score in JS
+    // (dateDiff(maxMerge()) causes a type mismatch in the Node client)
+    const rawFeed = await (await ch.query({
+      query: `
+        SELECT
+          domain, category,
+          countMerge(view_count)                                              AS views,
+          round(sumMerge(total_dwell_ms) / countMerge(view_count) / 1000.0, 1) AS avg_dwell_sec,
+          maxMerge(last_seen)                                                 AS last_seen,
+          uniqMerge(unique_products)                                          AS unique_products
+        FROM demo.pv_user_profile
+        WHERE user_id = '${userId}'
+        GROUP BY domain, category`,
+      format: 'JSONEachRow',
+    })).json();
     const aggMs = Date.now() - t0;
 
-    // Query 2: total event count for this user (for the KPI banner)
-    const statsRows = await queryRows(`
-      SELECT
-        count()     AS total_events,
-        uniq(domain) AS domains_visited,
-        uniq(category) AS categories,
-        min(viewed_at) AS earliest,
-        max(viewed_at) AS latest
-      FROM demo.page_views
-      WHERE user_id = '${userId}'
-    `);
+    // Compute recency-weighted relevance score in JavaScript
+    const nowMs = Date.now();
+    const feedRows = rawFeed.map(r => {
+      const lastSeenMs = new Date(r.last_seen.replace(' ', 'T') + 'Z').getTime();
+      const hoursAgo = Math.max(0, (nowMs - lastSeenMs) / 3_600_000);
+      const score = Math.round(Number(r.views) * 10.0 / (1 + hoursAgo) * 100) / 100;
+      return { ...r, views: Number(r.views), unique_products: Number(r.unique_products), relevance_score: score };
+    })
+      .sort((a, b) => b.relevance_score - a.relevance_score)
+      .slice(0, limit);
+
+    // Query 2: overall stats for this user
+    const statsRows = await (await ch.query({
+      query: `
+        SELECT count() AS total_events, uniq(domain) AS domains_visited,
+               uniq(category) AS categories, min(viewed_at) AS earliest, max(viewed_at) AS latest
+        FROM demo.page_views WHERE user_id = '${userId}'`,
+      format: 'JSONEachRow',
+    })).json();
     const stats = statsRows[0] || {};
 
-    // Query 3: all users list for the dropdown
-    const usersRows = await queryRows(`
-      SELECT DISTINCT user_id FROM demo.pv_user_profile ORDER BY user_id
-    `);
+    // Query 3: dropdown users
+    const usersRows = await (await ch.query({
+      query: `SELECT DISTINCT user_id FROM demo.pv_user_profile ORDER BY user_id`,
+      format: 'JSONEachRow',
+    })).json();
 
-    // Query 4: raw scan speed vs AggMT speed for benchmark panel
+    // Query 4: raw scan timing benchmark
     const t1 = Date.now();
-    await queryRows(`
-      SELECT domain, category, count() AS views, max(viewed_at) AS last_seen
-      FROM demo.page_views WHERE user_id = '${userId}'
-      GROUP BY domain, category ORDER BY views DESC LIMIT ${limit}
-    `);
+    await (await ch.query({
+      query: `SELECT domain, category, count() AS views, max(viewed_at) AS last_seen
+              FROM demo.page_views WHERE user_id = '${userId}'
+              GROUP BY domain, category ORDER BY views DESC LIMIT ${limit}`,
+      format: 'JSONEachRow',
+    })).json();
     const rawMs = Date.now() - t1;
 
     res.json({
-      userId,
-      feed: feedRows,
-      stats,
+      userId, feed: feedRows, stats,
       users: usersRows.map(r => r.user_id),
       benchmark: { aggMs, rawMs },
       sql: `-- Personalization feed from AggregatingMergeTree (no cron, real-time):
-SELECT
-    domain,
-    category,
-    countMerge(view_count)                                          AS views,
+SELECT domain, category,
+    countMerge(view_count)                                              AS views,
     round(sumMerge(total_dwell_ms) / countMerge(view_count) / 1000, 1) AS avg_dwell_sec,
-    formatDateTime(maxMerge(last_seen), '%Y-%m-%d %H:%i')          AS last_seen,
-    uniqMerge(unique_products)                                      AS unique_products,
-    -- recency-weighted score: boost recently-visited domains
-    round(countMerge(view_count) * 10.0 /
-        (1 + dateDiff('hour', maxMerge(last_seen), now())), 2)     AS relevance_score
+    maxMerge(last_seen)                                                 AS last_seen,
+    uniqMerge(unique_products)                                          AS unique_products
 FROM demo.pv_user_profile
 WHERE user_id = '${userId}'
 GROUP BY domain, category
-ORDER BY relevance_score DESC
-LIMIT ${limit};
-
--- The Materialized View that powers this (defined once, runs forever):
--- CREATE MATERIALIZED VIEW demo.pv_mv TO demo.pv_user_profile AS
--- SELECT user_id, domain, category,
---   countState() AS view_count,  sumState(dwell_ms) AS total_dwell_ms,
---   maxState(viewed_at) AS last_seen, uniqState(product_id) AS unique_products
--- FROM demo.page_views GROUP BY user_id, domain, category;`,
+-- then rank by recency-weighted score: views / (1 + hours_since_last_visit)
+ORDER BY countMerge(view_count) DESC LIMIT ${limit};`,
     });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
+
 
 // POST /api/shoppers/simulate-pageview
 // Simulates the browser extension firing page view events in real-time
