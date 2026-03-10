@@ -487,8 +487,8 @@ async function spRun9() {
 // 10. Personalization Feed — Browser Extension → MV → Real-Time Homepage Feed
 // ══════════════════════════════════════════════════════════════════════════════
 async function spRun10() {
-  spLoading('sp-body-10');
   const userId = document.getElementById('sp-pf-user')?.value || 'user_001';
+  spLoading('sp-body-10');
   try {
     const d = await (await fetch(`${SP_API}/shoppers/personalization-feed?user_id=${userId}`)).json();
     if (d.error) throw new Error(d.error);
