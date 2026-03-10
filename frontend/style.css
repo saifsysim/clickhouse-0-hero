@@ -5241,3 +5241,36 @@ select option {
 .spf-pill.spf-agg   { background: rgba(249,199,79,.12);  border-color: rgba(249,199,79,.3);  color: #fde68a; }
 .spf-pill.spf-dict  { background: rgba(236,72,153,.12);  border-color: rgba(236,72,153,.3);  color: #f9a8d4; }
 .spf-pill.spf-async { background: rgba(139,92,246,.13);  border-color: rgba(139,92,246,.3);  color: #c4b5fd; }
+
+/* ─── UC10: Personalization Feed cards ──────────────────────────────────────── */
+.sp-pf-controls {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+.sp-pf-label { font-size: 12px; color: var(--text3); }
+
+.sp-pf-feed { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+
+.sp-pf-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 14px; border-radius: 9px;
+    background: rgba(168,85,247,.07); border: 1px solid rgba(168,85,247,.2);
+    transition: background .15s, transform .15s;
+}
+.sp-pf-card:hover { background: rgba(168,85,247,.12); transform: translateX(3px); }
+
+.sp-pf-rank {
+    font-size: 13px; font-weight: 800; color: rgba(168,85,247,.8);
+    min-width: 20px; text-align: center;
+}
+.sp-pf-info   { min-width: 160px; }
+.sp-pf-domain { font-size: 12px; font-weight: 700; color: var(--text1); font-family: var(--mono); }
+.sp-pf-cat    { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+.sp-pf-stats  { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+.sp-pf-stat   { font-size: 10px; color: var(--text3); white-space: nowrap; }
+
+.sp-pf-score  {
+    font-size: 13px; font-weight: 700; color: #f9c74f;
+    min-width: 55px; text-align: right;
+}

@@ -2082,6 +2082,137 @@ app.get('/api/shoppers/dictionaries', async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// UC10 — Personalization Feed (page_views → MV → pv_user_profile AggMT)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/shoppers/personalization-feed?user_id=user_001&limit=10
+// Returns the ranked homepage feed for a given user from the AggMT
+app.get('/api/shoppers/personalization-feed', async (req, res) => {
+  const userId = req.query.user_id || 'user_001';
+  const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+
+  try {
+    const t0 = Date.now();
+
+    // Query 1: ranked feed from AggMT (what the homepage calls)
+    const feedRows = await queryRows(`
+      SELECT
+        domain,
+        category,
+        countMerge(view_count)           AS views,
+        round(sumMerge(total_dwell_ms) / 1000.0, 1)  AS total_dwell_sec,
+        round(sumMerge(total_dwell_ms) / countMerge(view_count) / 1000.0, 1) AS avg_dwell_sec,
+        formatDateTime(maxMerge(last_seen), '%Y-%m-%d %H:%i') AS last_seen,
+        uniqMerge(unique_products)       AS unique_products,
+        round(countMerge(view_count) * 10.0 /
+          (1 + dateDiff('hour', maxMerge(last_seen), now())), 2) AS relevance_score
+      FROM demo.pv_user_profile
+      WHERE user_id = '${userId}'
+      GROUP BY domain, category
+      ORDER BY relevance_score DESC
+      LIMIT ${limit}
+    `);
+    const aggMs = Date.now() - t0;
+
+    // Query 2: total event count for this user (for the KPI banner)
+    const statsRows = await queryRows(`
+      SELECT
+        count()     AS total_events,
+        uniq(domain) AS domains_visited,
+        uniq(category) AS categories,
+        min(viewed_at) AS earliest,
+        max(viewed_at) AS latest
+      FROM demo.page_views
+      WHERE user_id = '${userId}'
+    `);
+    const stats = statsRows[0] || {};
+
+    // Query 3: all users list for the dropdown
+    const usersRows = await queryRows(`
+      SELECT DISTINCT user_id FROM demo.pv_user_profile ORDER BY user_id
+    `);
+
+    // Query 4: raw scan speed vs AggMT speed for benchmark panel
+    const t1 = Date.now();
+    await queryRows(`
+      SELECT domain, category, count() AS views, max(viewed_at) AS last_seen
+      FROM demo.page_views WHERE user_id = '${userId}'
+      GROUP BY domain, category ORDER BY views DESC LIMIT ${limit}
+    `);
+    const rawMs = Date.now() - t1;
+
+    res.json({
+      userId,
+      feed: feedRows,
+      stats,
+      users: usersRows.map(r => r.user_id),
+      benchmark: { aggMs, rawMs },
+      sql: `-- Personalization feed from AggregatingMergeTree (no cron, real-time):
+SELECT
+    domain,
+    category,
+    countMerge(view_count)                                          AS views,
+    round(sumMerge(total_dwell_ms) / countMerge(view_count) / 1000, 1) AS avg_dwell_sec,
+    formatDateTime(maxMerge(last_seen), '%Y-%m-%d %H:%i')          AS last_seen,
+    uniqMerge(unique_products)                                      AS unique_products,
+    -- recency-weighted score: boost recently-visited domains
+    round(countMerge(view_count) * 10.0 /
+        (1 + dateDiff('hour', maxMerge(last_seen), now())), 2)     AS relevance_score
+FROM demo.pv_user_profile
+WHERE user_id = '${userId}'
+GROUP BY domain, category
+ORDER BY relevance_score DESC
+LIMIT ${limit};
+
+-- The Materialized View that powers this (defined once, runs forever):
+-- CREATE MATERIALIZED VIEW demo.pv_mv TO demo.pv_user_profile AS
+-- SELECT user_id, domain, category,
+--   countState() AS view_count,  sumState(dwell_ms) AS total_dwell_ms,
+--   maxState(viewed_at) AS last_seen, uniqState(product_id) AS unique_products
+-- FROM demo.page_views GROUP BY user_id, domain, category;`,
+    });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// POST /api/shoppers/simulate-pageview
+// Simulates the browser extension firing page view events in real-time
+app.post('/api/shoppers/simulate-pageview', async (req, res) => {
+  const { user_id = 'user_001', count = 10 } = req.body || {};
+  const domains = ['amazon.com', 'walmart.com', 'target.com', 'bestbuy.com', 'etsy.com'];
+  const categories = ['Electronics', 'Fashion', 'Home', 'Sports', 'Beauty'];
+  const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+  const randInt = (lo, hi) => Math.floor(Math.random() * (hi - lo + 1)) + lo;
+
+  try {
+    const rows = Array.from({ length: Math.min(count, 100) }, () => ({
+      user_id,
+      session_id: `live_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      domain: rand(domains),
+      url_path: rand(['/product', '/search', '/deals']),
+      category: rand(categories),
+      product_id: `P${randInt(1000, 9999)}`,
+      dwell_ms: randInt(1000, 60_000),
+      viewed_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    }));
+
+    const t0 = Date.now();
+    await ch.insert({
+      table: 'demo.page_views',
+      values: rows,
+      format: 'JSONEachRow',
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 1,
+        async_insert_deduplicate: 0,
+      },
+    });
+    const ms = Date.now() - t0;
+
+    res.json({ inserted: rows.length, ms, rows });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ─── SERVER START ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🚀 ClickHouse Explorer API running on :${PORT}`));

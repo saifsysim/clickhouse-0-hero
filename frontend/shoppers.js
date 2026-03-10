@@ -484,7 +484,105 @@ async function spRun9() {
   }
 }
 // ══════════════════════════════════════════════════════════════════════════════
-// Flow diagram — draw pixel-perfect SVG connections after DOM renders
+// 10. Personalization Feed — Browser Extension → MV → Real-Time Homepage Feed
+// ══════════════════════════════════════════════════════════════════════════════
+async function spRun10() {
+  spLoading('sp-body-10');
+  const userId = document.getElementById('sp-pf-user')?.value || 'user_001';
+  try {
+    const d = await (await fetch(`${SP_API}/shoppers/personalization-feed?user_id=${userId}`)).json();
+    if (d.error) throw new Error(d.error);
+    const el = document.getElementById('sp-body-10');
+    const s = d.stats;
+    const b = d.benchmark;
+    const maxMs = Math.max(b.aggMs, b.rawMs) || 1;
+
+    // Build user select options
+    const opts = (d.users || []).map(u =>
+      `<option value="${u}" ${u === d.userId ? 'selected' : ''}>${u}</option>`).join('');
+
+    el.innerHTML = `
+      <div class="sp-pf-controls">
+        <label class="sp-pf-label">👤 User</label>
+        <select id="sp-pf-user" onchange="spRun10()" class="sp-select" style="min-width:150px">${opts}</select>
+        <button class="sp-run-btn" onclick="spSimulatePageViews()" id="sp-pf-sim-btn">⚡ Simulate 25 Extension Events</button>
+        <span id="sp-pf-sim-status" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+
+      ${spKpis([
+      { label: 'Total Page Views', value: Number(s?.total_events || 0).toLocaleString(), sub: 'This user · last 7 days', color: '#6366f1' },
+      { label: 'Domains Visited', value: s?.domains_visited || 0, sub: 'Unique shopping sites', color: '#10b981' },
+      { label: 'Categories Browsed', value: s?.categories || 0, sub: 'Product categories', color: '#f97316' },
+      { label: 'AggMT Feed Query', value: `${b.aggMs}ms`, sub: `vs ${b.rawMs}ms raw scan`, color: '#f9c74f' },
+    ])}
+
+      <div class="sp-section-title">🏠 Homepage Feed — Ranked by Recency-Weighted Engagement</div>
+      <div class="sp-insight">💡 <strong>No cron needed.</strong> The Materialized View fires on every INSERT. The AggMT stores running <code>countState</code>/<code>sumState</code>/<code>maxState</code> — <code>countMerge()</code>/<code>sumMerge()</code> finalize them at query time in sub-milliseconds.</div>
+
+      <div class="sp-pf-feed">
+        ${(d.feed || []).map((row, i) => `
+          <div class="sp-pf-card">
+            <div class="sp-pf-rank">${i + 1}</div>
+            <div class="sp-pf-info">
+              <div class="sp-pf-domain">${row.domain}</div>
+              <div class="sp-pf-cat">${row.category}</div>
+            </div>
+            <div class="sp-pf-stats">
+              <span class="sp-pf-stat">👁️ ${Number(row.views).toLocaleString()} views</span>
+              <span class="sp-pf-stat">⏱ ${row.avg_dwell_sec}s avg dwell</span>
+              <span class="sp-pf-stat">📦 ${row.unique_products} products</span>
+              <span class="sp-pf-stat">🕐 ${row.last_seen}</span>
+            </div>
+            <div class="sp-pf-score">⭐ ${row.relevance_score}</div>
+          </div>`).join('')}
+      </div>
+
+      <div class="sp-section-title">⚡ Benchmark: AggMT vs Raw Table Scan</div>
+      <div class="sp-bench-compare">
+        <div class="sp-bench-side ${b.aggMs <= b.rawMs ? 'sp-bench-winner' : ''}">
+          <div class="sp-bench-label">⚡ AggregatingMergeTree (MV)</div>
+          <div class="sp-bench-ms">${b.aggMs}ms</div>
+          <div class="sp-bench-bar-wrap"><div class="sp-bench-bar" style="width:${(b.aggMs / maxMs * 100).toFixed(0)}%;background:#10b981"></div></div>
+          <div class="sp-bench-note">Reads compressed partial states, merges in flight — no raw row scan</div>
+        </div>
+        <div class="sp-bench-side ${b.rawMs <= b.aggMs ? 'sp-bench-winner' : ''}">
+          <div class="sp-bench-label">🐢 Raw page_views (GROUP BY)</div>
+          <div class="sp-bench-ms">${b.rawMs}ms</div>
+          <div class="sp-bench-bar-wrap"><div class="sp-bench-bar" style="width:${(b.rawMs / maxMs * 100).toFixed(0)}%;background:#ef4444"></div></div>
+          <div class="sp-bench-note">Full scan of all 50k rows for this user, then aggregate</div>
+        </div>
+      </div>
+    `;
+
+    // Update the user select reference
+    document.getElementById('sp-pf-user')?.addEventListener('change', spRun10);
+  } catch (e) {
+    document.getElementById('sp-body-10').innerHTML = `<div class="sp-error">⚠️ ${e.message}</div>`;
+  }
+}
+
+async function spSimulatePageViews() {
+  const userId = document.getElementById('sp-pf-user')?.value || 'user_001';
+  const btn = document.getElementById('sp-pf-sim-btn');
+  const status = document.getElementById('sp-pf-sim-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Inserting…'; }
+  try {
+    const d = await (await fetch(`${SP_API}/shoppers/simulate-pageview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, count: 25 }),
+    })).json();
+    if (d.error) throw new Error(d.error);
+    if (status) status.textContent = `✅ ${d.inserted} events fired via async insert in ${d.ms}ms — feed updating…`;
+    // Wait a moment for the MV to process then refresh
+    setTimeout(spRun10, 600);
+  } catch (e) {
+    if (status) status.textContent = `⚠️ ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Simulate 25 Extension Events'; }
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ── Downstream dependency graph ───────────────────────────────────────────────
 const SPF_GRAPH = {
@@ -748,6 +846,7 @@ async function initShoppers() {
       ['⚡', 'Live Dashboards'],
       ['🚀', 'Async Inserts'],
       ['📖', 'Dictionaries'],
+      ['🧠', 'Personalization Feed'],
     ].map(([icon, label], i) => `
           <button class="sp-nav-btn" onclick="document.getElementById('sp-card-${i + 1}').scrollIntoView({behavior:'smooth',block:'start'})">
             <span class="sp-nav-icon">${icon}</span><span>${label}</span>
@@ -992,7 +1091,37 @@ SELECT dictGetOrDefault('demo.product_dict', 'brand', 'SKU_UNKNOWN', 'N/A');`),
       'sp-body-9'
     )}
 
-      <!-- Footer -->
+      <!-- USE CASE 10: Personalization Feed -->
+      ${spCard(10,
+      'Personalization Feed — Extension Events → Real-Time Homepage', '🧠',
+      'Browser extension streams page views → MV aggregates on INSERT → homepage queries AggMT for a ranked feed. Zero cron, sub-millisecond latency, flexible filters.',
+      'AggregatingMergeTree + Materialized View', '#a855f7',
+      spSql(`-- The MV fires on every INSERT (defined once, runs forever):
+CREATE MATERIALIZED VIEW demo.pv_mv TO demo.pv_user_profile AS
+SELECT
+    user_id, domain, category,
+    countState()           AS view_count,
+    sumState(dwell_ms)     AS total_dwell_ms,
+    maxState(viewed_at)    AS last_seen,
+    uniqState(product_id)  AS unique_products
+FROM demo.page_views
+GROUP BY user_id, domain, category;
+
+-- Homepage feed query (reads compressed partial states, not raw rows):
+SELECT
+    domain, category,
+    countMerge(view_count)                                              AS views,
+    round(sumMerge(total_dwell_ms) / countMerge(view_count) / 1000, 1) AS avg_dwell_sec,
+    uniqMerge(unique_products)                                          AS products_seen,
+    round(countMerge(view_count) * 10.0 /
+        (1 + dateDiff('hour', maxMerge(last_seen), now())), 2)         AS relevance_score
+FROM demo.pv_user_profile
+WHERE user_id = 'user_001'
+GROUP BY domain, category
+ORDER BY relevance_score DESC LIMIT 10;`),
+      'sp-body-10'
+    )}
+
       <div class="sp-footer glass">
         <div class="sp-footer-title">🛍️ Shoppers Paradise — ClickHouse Architecture</div>
         <div class="sp-footer-grid">

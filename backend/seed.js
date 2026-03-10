@@ -609,6 +609,67 @@ async function main() {
     console.log('✅ Dictionary + async demo table ready\n');
 
 
+    // ─── UC10: Personalization Feed DDL ───────────────────────────────────────
+    console.log('🧠  Creating personalization feed tables…');
+
+    // Drop + recreate so re-running seed is idempotent
+    await ch.command({ query: `DROP TABLE   IF EXISTS demo.page_views` });
+    await ch.command({ query: `DROP TABLE   IF EXISTS demo.pv_user_profile` });
+    await ch.command({ query: `DROP VIEW    IF EXISTS demo.pv_mv` });
+
+    // Raw page view events (written by the browser extension)
+    await ch.command({
+        query: `
+        CREATE TABLE demo.page_views (
+            user_id     String,
+            session_id  String,
+            domain      String,
+            url_path    String,
+            category    LowCardinality(String),
+            product_id  String,
+            dwell_ms    UInt32,
+            viewed_at   DateTime
+        )
+        ENGINE = MergeTree()
+        ORDER BY (user_id, domain, viewed_at)
+        PARTITION BY toYYYYMM(viewed_at)
+    ` });
+
+    // AggregatingMergeTree — receives MV state, queried for the feed
+    await ch.command({
+        query: `
+        CREATE TABLE demo.pv_user_profile (
+            user_id         String,
+            domain          String,
+            category        LowCardinality(String),
+            view_count      AggregateFunction(count,   UInt8),
+            total_dwell_ms  AggregateFunction(sum,     UInt32),
+            last_seen       AggregateFunction(max,     DateTime),
+            unique_products AggregateFunction(uniq,    String)
+        )
+        ENGINE = AggregatingMergeTree()
+        ORDER BY (user_id, domain, category)
+    ` });
+
+    // Materialized View — fires on every INSERT into page_views, zero cron needed
+    await ch.command({
+        query: `
+        CREATE MATERIALIZED VIEW demo.pv_mv
+        TO demo.pv_user_profile AS
+        SELECT
+            user_id,
+            domain,
+            category,
+            countState()              AS view_count,
+            sumState(dwell_ms)        AS total_dwell_ms,
+            maxState(viewed_at)       AS last_seen,
+            uniqState(product_id)     AS unique_products
+        FROM demo.page_views
+        GROUP BY user_id, domain, category
+    ` });
+
+    console.log('✅ Personalization feed schema ready\n');
+
     console.log('🌱 Seeding core demo data…');
     await seedTelemetry();
     await seedLogs();
@@ -624,8 +685,62 @@ async function main() {
     await seedVendorFeed();
     await seedProductCatalog();
 
+    console.log('\n\n🧠  Seeding page view events (UC10)…');
+    await seedPageViews();
+
     console.log('\n\n🎉 All done! ClickHouse Explorer + Shoppers Paradise ready.\n');
     await ch.close();
+}
+
+// ── UC10 seed: 50k synthetic browser-extension page view events ─────────────
+async function seedPageViews() {
+    const users = Array.from({ length: 20 }, (_, i) => `user_${String(i + 1).padStart(3, '0')}`);
+    const domains = [
+        'amazon.com', 'walmart.com', 'target.com', 'bestbuy.com', 'etsy.com',
+        'ebay.com', 'homedepot.com', 'costco.com', 'wayfair.com', 'chewy.com',
+        'sephora.com', 'nike.com', 'adidas.com', 'gap.com', 'zara.com',
+    ];
+    const categories = ['Electronics', 'Fashion', 'Home', 'Sports', 'Beauty', 'Grocery', 'Toys', 'Books'];
+    const paths = ['/product', '/search', '/category', '/deals', '/cart'];
+
+    const TOTAL = 50_000;
+    const BATCH = 5_000;
+    let inserted = 0;
+
+    const now = Math.floor(Date.now() / 1000);
+    const SEVEN_DAYS = 7 * 24 * 3600;
+
+    const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const randInt = (lo, hi) => Math.floor(Math.random() * (hi - lo + 1)) + lo;
+
+    while (inserted < TOTAL) {
+        const count = Math.min(BATCH, TOTAL - inserted);
+        const rows = [];
+        for (let i = 0; i < count; i++) {
+            const user = rand(users);
+            const domain = rand(domains);
+            const cat = rand(categories);
+            // weight: each user has 2-3 "favourite" domains they visit more often
+            const userIdx = parseInt(user.split('_')[1]);
+            const favDomains = [domains[userIdx % domains.length], domains[(userIdx + 3) % domains.length]];
+            const actualDomain = Math.random() < 0.55 ? rand(favDomains) : domain;
+            const ts = now - Math.floor(Math.random() * SEVEN_DAYS);
+            rows.push({
+                user_id: user,
+                session_id: `sess_${user}_${ts}`,
+                domain: actualDomain,
+                url_path: rand(paths),
+                category: cat,
+                product_id: `P${randInt(1000, 9999)}`,
+                dwell_ms: randInt(500, 120_000),
+                viewed_at: new Date(ts * 1000).toISOString().replace('T', ' ').slice(0, 19),
+            });
+        }
+        await ch.insert({ table: 'demo.page_views', values: rows, format: 'JSONEachRow' });
+        inserted += count;
+        process.stdout.write(`  page_views: ${inserted.toLocaleString()} / ${TOTAL.toLocaleString()}\r`);
+    }
+    console.log(`\n✅ page_views seeded: ${TOTAL.toLocaleString()} events`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
