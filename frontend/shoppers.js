@@ -74,7 +74,7 @@ function spSql(sql) {
 }
 
 // ── Scenario card template ────────────────────────────────────────────────────
-function spCard(num, title, icon, tagline, engineBadge, engineColor, sqlSnippet, bodyId, total = 9) {
+function spCard(num, title, icon, tagline, engineBadge, engineColor, sqlSnippet, bodyId, total = 10) {
   return `
     <div class="sp-card glass" id="sp-card-${num}">
       <div class="sp-card-header">
@@ -762,8 +762,8 @@ async function initShoppers() {
           This scenario simulates the analytics backend of a multi-vendor shopping platform — the kind that aggregates prices, deals, and cashback offers from dozens of retailers in real time.
           The goal is to show <strong>exactly which ClickHouse features solve each real problem</strong>: tracking price drops across 10 vendors, measuring which coupons actually convert,
           attributing affiliate revenue without losing commissions to pixel leakage, understanding how different shopper types browse and buy, ingesting live vendor feeds without expensive
-          database mutations, keeping a product catalog fresh, and powering live dashboards that never re-scan raw data.
-          All 7 use cases run against 145k+ live rows — with the real SQL shown for each one.
+          database mutations, keeping a product catalog fresh, powering live dashboards that never re-scan raw data, and building real-time personalization feeds without crons.
+          All 10 use cases run against 195k+ live rows — with the real SQL shown for each one.
         </p>
         ${seedBanner}
       </div>
