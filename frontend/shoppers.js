@@ -987,18 +987,20 @@ async function initShoppers() {
             <div class="spf-node spf-rmt" id="fn-vf" data-node="fn-vf">sp_vendor_feed<br><small>ReplacingMT · 300</small></div>
             <div class="spf-node spf-rmt" id="fn-pc" data-node="fn-pc">sp_product_catalog<br><small>ReplacingMT · 30</small></div>
             <div class="spf-node spf-async" id="fn-af" data-node="fn-af">sp_async_feed_demo<br><small>ReplacingMT (async)</small></div>
+            <div class="spf-node spf-merge" id="fn-pv" data-node="fn-pv" style="border-color:rgba(168,85,247,.5)">page_views<br><small>MergeTree · 50k rows</small></div>
           </div>
 
           <!-- Col 3: Pre-Aggregation -->
           <div class="spf-col">
             <div class="spf-col-lbl">Pre-Aggregation</div>
             <div class="spf-node spf-agg" id="fn-agg" data-node="fn-agg">sp_price_hourly_agg<br><small>AggregatingMergeTree</small><br><small style="opacity:.7">countState · avgState · uniqState</small></div>
-              <div class="spf-node spf-dict" id="fn-dict" data-node="fn-dict">product_dict<br><small>HASHED Dictionary</small><br><small style="opacity:.7">sku_id → brand · rating</small></div>
-              </div>
+            <div class="spf-node spf-dict" id="fn-dict" data-node="fn-dict">product_dict<br><small>HASHED Dictionary</small><br><small style="opacity:.7">sku_id → brand · rating</small></div>
+            <div class="spf-node spf-agg" id="fn-pvp" data-node="fn-pvp" style="border-color:rgba(168,85,247,.5)">pv_user_profile<br><small>AggregatingMergeTree</small><br><small style="opacity:.7">page_views → pv_mv → AggMT</small></div>
+          </div>
 
               <!-- Col 4: Use Cases -->
               <div class="spf-col">
-                <div class="spf-col-lbl">9 Use Cases</div>
+                <div class="spf-col-lbl">10 Use Cases</div>
                 <div class="spf-node spf-uc spf-uc-merge" id="fn-uc1" data-node="fn-uc1">💰 Price Intelligence<br><small>PARTITION + HAVING</small></div>
                 <div class="spf-node spf-uc spf-uc-merge" id="fn-uc2" data-node="fn-uc2">🎟️ Coupon Funnel<br><small>countIf() single pass</small></div>
                 <div class="spf-node spf-uc spf-uc-merge" id="fn-uc3" data-node="fn-uc3">💸 Cashback ROI<br><small>columnar aggregation</small></div>
@@ -1008,6 +1010,7 @@ async function initShoppers() {
                 <div class="spf-node spf-uc spf-uc-agg" id="fn-uc7" data-node="fn-uc7">⚡ Live Dashboards<br><small>AggMT *Merge()</small></div>
                 <div class="spf-node spf-uc spf-uc-async" id="fn-uc8" data-node="fn-uc8">🚀 Async Inserts<br><small>buffer + dedup</small></div>
                 <div class="spf-node spf-uc spf-uc-dict" id="fn-uc9" data-node="fn-uc9">📖 Dictionaries<br><small>dictGet() vs JOIN</small></div>
+                <div class="spf-node spf-uc" id="fn-uc10" data-node="fn-uc10" style="border-color:rgba(168,85,247,.5);background:rgba(168,85,247,.08)">🧠 Personalization Feed<br><small>MV + AggMT real-time</small></div>
               </div>
             </div>
 
