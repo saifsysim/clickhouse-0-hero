@@ -491,6 +491,132 @@
           <div class="engine-result" id="result-aggregating-demo"></div>
         </div>
 
+        <!-- ── Materialized View ─────────────────────────────────────────── -->
+        <div class="engine-card glass" style="border-color:rgba(16,185,129,.25);grid-column:1/-1">
+          <div class="engine-badge" style="background:linear-gradient(135deg,#10b981,#059669)">Materialized View</div>
+          <h3>Materialized View — trigger, not a snapshot</h3>
+          <p class="engine-desc">
+            In ClickHouse a Materialized View is a <strong>trigger that fires on every INSERT</strong> — it runs its
+            SELECT on only the <em>new rows</em> (the delta) and writes the result into a target table.
+            Unlike PostgreSQL's <code>REFRESH MATERIALIZED VIEW</code> which re-runs the full query on a schedule,
+            ClickHouse MVs update <strong>continuously and incrementally</strong>. No cron. No scheduler. Written once,
+            runs forever.
+          </p>
+
+          <!-- Pipeline diagram -->
+          <div class="mv-pipeline">
+            <div class="mv-step mv-step-src">
+              <div class="mv-step-num">1</div>
+              <div class="mv-step-label">Raw Events Table</div>
+              <div class="mv-step-engine">MergeTree</div>
+              <code>INSERT INTO events …</code>
+            </div>
+            <div class="mv-pipe-arrow"><span>→</span><small>MV fires on<br>new rows only</small></div>
+            <div class="mv-step mv-step-mv">
+              <div class="mv-step-num">2</div>
+              <div class="mv-step-label">Materialized View</div>
+              <div class="mv-step-engine">Trigger</div>
+              <code>SELECT … *State()</code>
+            </div>
+            <div class="mv-pipe-arrow"><span>→</span><small>partial states<br>appended</small></div>
+            <div class="mv-step mv-step-agg">
+              <div class="mv-step-num">3</div>
+              <div class="mv-step-label">Pre-aggregation Target</div>
+              <div class="mv-step-engine">AggregatingMergeTree</div>
+              <code>countMerge() at query</code>
+            </div>
+            <div class="mv-pipe-arrow"><span>→</span><small>sub-ms<br>read</small></div>
+            <div class="mv-step mv-step-query">
+              <div class="mv-step-num">4</div>
+              <div class="mv-step-label">Dashboard / Feed</div>
+              <div class="mv-step-engine">Real-time result</div>
+              <code>SELECT *Merge(…)</code>
+            </div>
+          </div>
+
+          <!-- Four-step code walkthrough -->
+          <div class="mv-code-steps">
+            <div class="mv-code-block">
+              <div class="mv-code-hdr"><span class="mv-code-num">Step 1</span> — Source table (raw events)</div>
+              <div class="code-block">CREATE TABLE page_views (
+                user_id String,
+                domain String,
+                category LowCardinality(String),
+                dwell_ms UInt32,
+                viewed_at DateTime
+                ) ENGINE = MergeTree()
+                ORDER BY (user_id, domain, viewed_at);</div>
+            </div>
+            <div class="mv-code-block">
+              <div class="mv-code-hdr"><span class="mv-code-num">Step 2</span> — AggMT target (stores partial states,
+                not final numbers)</div>
+              <div class="code-block">CREATE TABLE pv_user_profile (
+                user_id String,
+                domain String,
+                category LowCardinality(String),
+                view_count AggregateFunction(count, UInt8),
+                total_dwell_ms AggregateFunction(sum, UInt32),
+                last_seen AggregateFunction(max, DateTime)
+                ) ENGINE = AggregatingMergeTree()
+                ORDER BY (user_id, domain, category);</div>
+            </div>
+            <div class="mv-code-block">
+              <div class="mv-code-hdr"><span class="mv-code-num">Step 3</span> — MV: written once, fires on every INSERT
+                forever</div>
+              <div class="code-block">CREATE MATERIALIZED VIEW pv_mv
+                TO pv_user_profile AS -- "TO" routes output to AggMT
+                SELECT user_id, domain, category,
+                countState() AS view_count, -- partial state, not a number
+                sumState(dwell_ms) AS total_dwell_ms,
+                maxState(viewed_at) AS last_seen
+                FROM page_views
+                GROUP BY user_id, domain, category;
+                -- ☝ Only runs on the NEW rows from each INSERT (the delta)</div>
+            </div>
+            <div class="mv-code-block">
+              <div class="mv-code-hdr"><span class="mv-code-num">Step 4</span> — Query: *Merge() finalises the
+                accumulated states</div>
+              <div class="code-block">SELECT domain, category,
+                countMerge(view_count) AS total_views,
+                round(sumMerge(total_dwell_ms) / 1000.0) AS avg_dwell_sec,
+                maxMerge(last_seen) AS last_seen
+                FROM pv_user_profile
+                WHERE user_id = 'user_001'
+                GROUP BY domain, category
+                ORDER BY total_views DESC LIMIT 10;</div>
+            </div>
+          </div>
+
+          <!-- Key insight boxes -->
+          <div class="mv-insights">
+            <div class="mv-insight mv-insight-good">
+              <strong>✅ Delta-only processing</strong><br>
+              The MV SELECT runs only on the new rows from each INSERT. Insert 25 rows → MV processes 25 rows, not the
+              full 50,000-row table.
+            </div>
+            <div class="mv-insight mv-insight-good">
+              <strong>✅ Partial states stack over time</strong><br>
+              Each INSERT appends new state rows to the AggMT. <code>countMerge()</code> finalises across all
+              accumulated partial states at query time — background merges compact them silently.
+            </div>
+            <div class="mv-insight mv-insight-warn">
+              <strong>⚠️ vs PostgreSQL REFRESH MATERIALIZED VIEW</strong><br>
+              PostgreSQL re-runs the full query on the full table on a schedule. ClickHouse fires on each INSERT — zero
+              lag, no refresh, no stale window.
+            </div>
+          </div>
+
+          <div class="use-cases">
+            <span class="tag">⚡ Real-time feeds</span>
+            <span class="tag">📊 Pre-aggregation</span>
+            <span class="tag">🧠 No-cron rollups</span>
+            <span class="tag">🔁 Incremental ETL</span>
+          </div>
+          <button class="btn btn-sm" onclick="runEngineDemo('mv-demo')">▶ Live Demo — Query the MV-backed AggMT
+            (sp_price_hourly_agg)</button>
+          <div class="engine-result" id="result-mv-demo"></div>
+        </div>
+
         <div class="engine-card glass">
           <div class="engine-badge" style="background:linear-gradient(135deg,#ec4899,#db2777)">ReplacingMergeTree</div>
           <h3>ReplacingMergeTree</h3>

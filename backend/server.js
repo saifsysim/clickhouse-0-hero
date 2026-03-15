@@ -343,6 +343,32 @@ app.get('/api/engines/aggregating-demo', async (req, res) => {
   }
 });
 
+app.get('/api/engines/mv-demo', async (req, res) => {
+  try {
+    const result = await ch.query({
+      query: `
+        SELECT
+          service,
+          toStartOfHour(hour) AS hour_bucket,
+          countMerge(event_count)         AS total_events,
+          round(avgMerge(avg_value), 2)   AS avg_value,
+          uniqMerge(unique_users)         AS unique_users
+        FROM sp_price_hourly_agg
+        GROUP BY service, hour_bucket
+        ORDER BY hour_bucket DESC, total_events DESC
+        LIMIT 15
+      `,
+      format: 'JSONEachRow',
+    });
+    res.json({
+      engine: 'AggregatingMergeTree (MV-backed) — countMerge / avgMerge / uniqMerge',
+      data: await result.json()
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.get('/api/engines/summing-demo', async (req, res) => {
   try {
     const result = await ch.query({
