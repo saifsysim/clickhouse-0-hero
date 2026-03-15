@@ -348,20 +348,21 @@ app.get('/api/engines/mv-demo', async (req, res) => {
     const result = await ch.query({
       query: `
         SELECT
-          service,
-          toStartOfHour(hour) AS hour_bucket,
-          countMerge(event_count)         AS total_events,
-          round(avgMerge(avg_value), 2)   AS avg_value,
-          uniqMerge(unique_users)         AS unique_users
-        FROM sp_price_hourly_agg
-        GROUP BY service, hour_bucket
-        ORDER BY hour_bucket DESC, total_events DESC
+          vendor_id,
+          toStartOfHour(hour)            AS hour_bucket,
+          countMerge(price_count)        AS total_price_updates,
+          round(avgMerge(avg_price), 2)  AS avg_price,
+          round(minMerge(min_price), 2)  AS best_price,
+          uniqMerge(unique_skus)         AS unique_skus
+        FROM demo.sp_price_hourly_agg
+        GROUP BY vendor_id, hour_bucket
+        ORDER BY hour_bucket DESC, total_price_updates DESC
         LIMIT 15
       `,
       format: 'JSONEachRow',
     });
     res.json({
-      engine: 'AggregatingMergeTree (MV-backed) — countMerge / avgMerge / uniqMerge',
+      engine: 'AggregatingMergeTree (MV-backed) — countMerge / avgMerge / minMerge / uniqMerge',
       data: await result.json()
     });
   } catch (e) {
