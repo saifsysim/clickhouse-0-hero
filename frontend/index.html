@@ -122,6 +122,11 @@
         🛍️ Shoppers Paradise
       </button>
 
+      <button class="nav-item" data-tab="compare" onclick="switchTab('compare',this)"
+        style="background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(99,102,241,.06));border:1px solid rgba(16,185,129,.18)">
+        ⚡ CH vs The World
+      </button>
+
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
         <svg viewBox="0 0 24 24" fill="none">
@@ -3113,12 +3118,19 @@ GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
       <div id="shoppers-root"></div>
     </section><!-- end tab-shoppers -->
 
+    <!-- ─── CLICKHOUSE VS THE WORLD ────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-compare">
+      <div id="compare-root"></div>
+    </section><!-- end tab-compare -->
+
+
   </main>
 
   <script src="app.js"></script>
   <script src="learn.js"></script>
   <script src="features.js"></script>
   <script src="shoppers.js"></script>
+  <script src="compare.js"></script>
 </body>
 
 </html>

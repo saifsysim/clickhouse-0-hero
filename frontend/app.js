@@ -27,6 +27,7 @@ function switchTab(tab, btn) {
   if (tab === 'home') renderProgressDashboard();
   if (tab === 'dba') initDba();
   if (tab === 'shoppers') initShoppers();
+  if (tab === 'compare') initComparePage();
 }
 
 // Navigate to a tab from within the Learning Guide (without needing a button ref)

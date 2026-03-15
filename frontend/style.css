@@ -5320,3 +5320,60 @@ select option {
 .sp-pf-scenario-block { border-radius: 8px; padding: 12px 16px; background: rgba(99,102,241,.06); border: 1px solid rgba(99,102,241,.15); margin-bottom: 12px; }
 .sp-pf-scenario-label { font-size: 11px; font-weight: 700; color: #6366f1; margin-bottom: 6px; text-transform: uppercase; letter-spacing:.06em; }
 .sp-pf-scenario-desc  { font-size: 12px; color: var(--text2); margin: 0 0 10px; line-height: 1.6; }
+
+/* ─── Compare Page (ClickHouse vs The World) ─────────────────────────────────── */
+#cmp-root { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+
+.cmp-hero { text-align: center; padding: 40px 20px 28px; }
+.cmp-hero-title { font-size: clamp(22px, 4vw, 36px); font-weight: 800; letter-spacing: -.02em; background: linear-gradient(135deg, #10b981, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+.cmp-hero-sub { font-size: 14px; color: var(--text2); max-width: 640px; margin: 0 auto 24px; line-height: 1.7; }
+.cmp-db-pills { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.cmp-ch-pill { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; background: rgba(16,185,129,.15); border: 1.5px solid rgba(16,185,129,.4); color: #10b981; }
+.cmp-db-pill { padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; border-width: 1px; border-style: solid; background: rgba(255,255,255,.03); line-height: 1.4; }
+
+/* category nav */
+.cmp-cat-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 20px; }
+.cmp-cat-btn { padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03); color: var(--text2); cursor: pointer; transition: all .15s; }
+.cmp-cat-btn:hover { background: rgba(255,255,255,.07); color: var(--text1); }
+.cmp-cat-active { background: rgba(16,185,129,.12) !important; border-color: rgba(16,185,129,.35) !important; color: #10b981 !important; }
+
+/* comparison table */
+.cmp-table-wrap { overflow-x: auto; }
+.cmp-content-anim { animation: cmp-fade-in .25s ease; }
+@keyframes cmp-fade-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cmp-th { padding: 8px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); border-bottom: 1px solid rgba(255,255,255,.07); }
+.cmp-th-db { width: 160px; }
+.cmp-row { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .1s; }
+.cmp-row:hover { background: rgba(255,255,255,.025); }
+.cmp-row-ch { background: rgba(16,185,129,.04); }
+.cmp-row-ch:hover { background: rgba(16,185,129,.08); }
+.cmp-td-db { padding: 10px 12px; vertical-align: top; white-space: nowrap; width: 160px; }
+.cmp-td { padding: 10px 14px; vertical-align: top; color: var(--text2); line-height: 1.6; }
+.cmp-ch-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.35); color: #10b981; white-space: nowrap; }
+
+/* section title */
+.cmp-section-title { font-size: 13px; font-weight: 700; color: var(--text1); margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.07); }
+
+/* decision guide */
+.cmp-decision-wrap { display: flex; flex-direction: column; gap: 8px; }
+.cmp-decision-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 14px; border-radius: 8px; background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06); transition: background .15s; }
+.cmp-decision-row:hover { background: rgba(255,255,255,.045); }
+.cmp-decision-q { font-size: 12px; color: var(--text2); flex: 1; }
+.cmp-decision-a { flex-shrink: 0; }
+
+/* architecture diagram */
+.cmp-arch-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 680px) { .cmp-arch-wrap { grid-template-columns: 1fr; } }
+.cmp-arch-card { border-radius: 10px; padding: 14px 16px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.02); }
+.cmp-arch-label { font-size: 11px; font-weight: 700; color: var(--text3); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.cmp-arch-note { font-size: 10px; margin-top: 10px; }
+.cmp-arch-row-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+.cmp-arch-cell { padding: 4px 6px; border-radius: 4px; font-size: 9px; font-family: var(--mono); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); text-align: center; }
+.cmp-arch-hl { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.3); color: #fca5a5; }
+.cmp-arch-col-grid { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.cmp-arch-col-block { flex-shrink: 0; border-radius: 6px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04); overflow: hidden; }
+.cmp-arch-col-hl { border-color: rgba(16,185,129,.4); background: rgba(16,185,129,.1); }
+.cmp-arch-col-hdr { padding: 4px 8px; font-size: 9px; font-family: var(--mono); font-weight: 700; border-bottom: 1px solid rgba(255,255,255,.07); color: var(--text3); }
+.cmp-arch-col-hl .cmp-arch-col-hdr { color: #10b981; }
+.cmp-arch-col-vals { padding: 4px 8px; font-size: 9px; font-family: var(--mono); color: var(--text2); line-height: 1.8; }
