@@ -127,6 +127,11 @@
         ⚡ CH vs The World
       </button>
 
+      <button class="nav-item" data-tab="faq" onclick="switchTab('faq',this)"
+        style="background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(168,85,247,.06));border:1px solid rgba(99,102,241,.18)">
+        ❓ ClickHouse FAQ
+      </button>
+
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
         <svg viewBox="0 0 24 24" fill="none">
@@ -3123,6 +3128,11 @@ GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
       <div id="compare-root"></div>
     </section><!-- end tab-compare -->
 
+    <!-- ─── FAQ ──────────────────────────────────────────────── -->
+    <section class="tab-panel" id="tab-faq">
+      <div id="faq-root"></div>
+    </section><!-- end tab-faq -->
+
 
   </main>
 
@@ -3131,6 +3141,7 @@ GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
   <script src="features.js"></script>
   <script src="shoppers.js"></script>
   <script src="compare.js"></script>
+  <script src="faq.js"></script>
 </body>
 
 </html>
