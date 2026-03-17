@@ -1,0 +1,33 @@
+# Default values for local development
+image:
+  repository: clickhouse/clickhouse-server
+  tag: "24.3-alpine"
+  pullPolicy: IfNotPresent
+
+# Credentials — stored in a k8s Secret
+auth:
+  username: admin
+  password: "localdev123"
+
+# Single replica for local dev
+replicaCount: 1
+
+# Low-memory resources: fits in ~2 GB total on laptop
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1.5Gi"
+    cpu: "1"
+
+# PVC — 5Gi is enough for demos (kind uses standard/local-path)
+persistence:
+  enabled: true
+  storageClass: "standard"
+  size: "5Gi"
+
+# Service — ClusterIP, use port-forward to access
+service:
+  http: 8123
+  tcp: 9000
