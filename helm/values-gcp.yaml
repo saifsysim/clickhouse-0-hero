@@ -1,0 +1,50 @@
+# values-gcp.yaml — Google Kubernetes Engine production
+# Usage: helm install ch ./clickhouse -f ../values-gcp.yaml
+image:
+  tag: "24.3"
+
+replicaCount: 3
+
+auth:
+  existingSecret: clickhouse-secret
+  existingSecretKey: password
+
+resources:
+  requests: { memory: "8Gi", cpu: "2" }
+  limits:   { memory: "16Gi", cpu: "8" }
+
+persistence:
+  size: "200Gi"
+  storageClass: "premium-rwo"   # GKE regional SSD
+
+service:
+  type: LoadBalancer
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app: clickhouse
+        topologyKey: kubernetes.io/hostname
+
+keeper:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    size: "20Gi"
+    storageClass: "premium-rwo"
+  resources:
+    requests: { memory: "1Gi", cpu: "0.5" }
+    limits:   { memory: "2Gi", cpu: "1" }
+
+ingress:
+  enabled: true
+  className: "gce"
+  host: "clickhouse.mycompany.com"
+  tls: true
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    networking.gke.io/managed-certificates: clickhouse-cert

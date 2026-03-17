@@ -1,0 +1,41 @@
+# values-azure.yaml — Azure Kubernetes Service production
+# Usage: helm install ch ./clickhouse -f ../values-azure.yaml
+image:
+  tag: "24.3"
+
+replicaCount: 3
+
+auth:
+  existingSecret: clickhouse-secret
+  existingSecretKey: password
+
+resources:
+  requests: { memory: "8Gi", cpu: "2" }
+  limits:   { memory: "16Gi", cpu: "8" }
+
+persistence:
+  size: "200Gi"
+  storageClass: "managed-premium"   # Azure Premium SSD
+
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app: clickhouse
+        topologyKey: kubernetes.io/hostname
+
+keeper:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    size: "20Gi"
+    storageClass: "managed-premium"
+  resources:
+    requests: { memory: "1Gi", cpu: "0.5" }
+    limits:   { memory: "2Gi", cpu: "1" }

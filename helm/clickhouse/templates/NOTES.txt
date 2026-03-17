@@ -1,0 +1,36 @@
+{{- $name := include "clickhouse.name" . }}
+ClickHouse has been deployed!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Version : {{ .Chart.AppVersion }}
+  Release : {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Replicas : {{ .Values.replicaCount }}
+  Storage  : {{ .Values.persistence.size }} ({{ .Values.persistence.storageClass }})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+▶ Get credentials:
+  Username : {{ .Values.auth.username }}
+  Password : kubectl get secret {{ $name }}-secret -n {{ .Release.Namespace }} \
+             -o jsonpath="{.data.password}" | base64 -d
+
+{{- if eq .Values.service.type "ClusterIP" }}
+▶ Port-forward to access (ClusterIP):
+  kubectl port-forward svc/{{ $name }} 8123:8123 -n {{ .Release.Namespace }}
+  curl "http://localhost:8123/ping"
+  curl "http://localhost:8123/?user={{ .Values.auth.username }}&password=<PWD>&query=SELECT+version()"
+{{- else if eq .Values.service.type "LoadBalancer" }}
+▶ Get the external IP (LoadBalancer):
+  kubectl get svc {{ $name }} -n {{ .Release.Namespace }} -w
+  # Then connect: http://<EXTERNAL-IP>:8123
+{{- else if eq .Values.service.type "NodePort" }}
+▶ Get Node IP + Port (NodePort):
+  kubectl get nodes -o wide
+  kubectl get svc {{ $name }} -n {{ .Release.Namespace }}
+{{- end }}
+
+▶ Upgrade:
+  helm upgrade {{ .Release.Name }} ./clickhouse -n {{ .Release.Namespace }} -f <values-file.yaml>
+
+▶ Uninstall:
+  helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}

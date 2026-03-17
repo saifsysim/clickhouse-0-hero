@@ -1,0 +1,62 @@
+# values-aws.yaml — AWS EKS production
+# Usage: helm install ch ./clickhouse -f ../values-aws.yaml
+image:
+  tag: "24.3"           # full image (not alpine) for prod
+
+replicaCount: 3
+
+auth:
+  existingSecret: clickhouse-secret   # kubectl create secret generic clickhouse-secret --from-literal=password=...
+  existingSecretKey: password
+
+resources:
+  requests: { memory: "8Gi", cpu: "2" }
+  limits:   { memory: "16Gi", cpu: "8" }
+
+persistence:
+  size: "200Gi"
+  storageClass: "gp3"    # AWS EKS gp3 SSD
+
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app: clickhouse
+        topologyKey: kubernetes.io/hostname
+
+keeper:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    size: "20Gi"
+    storageClass: "gp3"
+  resources:
+    requests: { memory: "1Gi", cpu: "0.5" }
+    limits:   { memory: "2Gi", cpu: "1" }
+
+probes:
+  liveness:
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    failureThreshold: 5
+  readiness:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+extraConfig: |
+  <clickhouse>
+    <mark_cache_size>5368709120</mark_cache_size>
+    <uncompressed_cache_size>8589934592</uncompressed_cache_size>
+    <max_connections>2000</max_connections>
+    <max_concurrent_queries>400</max_concurrent_queries>
+    <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+    <async_insert_max_data_size>10485760</async_insert_max_data_size>
+    <async_insert_busy_timeout_ms>200</async_insert_busy_timeout_ms>
+  </clickhouse>

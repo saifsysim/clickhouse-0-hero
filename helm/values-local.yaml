@@ -1,48 +1,13 @@
-# values-local.yaml — minimal ClickHouse for local laptop development
-# Designed to run on a kind cluster with ~4GB RAM and ~20GB disk available
-
-# ── Single shard, single replica (no HA, no Keeper needed) ────────
-shards: 1
+# values-local.yaml — laptop / kind cluster
+# Usage: helm install ch ./clickhouse -f ../values-local.yaml
 replicaCount: 1
-
-# ── Auth ───────────────────────────────────────────────────────────
-auth:
-  username: admin
-  password: "localdev123"
-
-# ── Minimal resources (fits in ~2GB RAM total) ────────────────────
 resources:
-  requests:
-    memory: "512Mi"
-    cpu: "250m"
-  limits:
-    memory: "1.5Gi"
-    cpu: "1000m"
-
-# ── Small PVC (kind uses local-path provisioner) ──────────────────
+  requests: { memory: "512Mi", cpu: "250m" }
+  limits:   { memory: "1.5Gi", cpu: "1" }
 persistence:
-  enabled: true
-  size: 5Gi
-  # kind has a 'standard' storage class by default (local-path)
-  storageClass: standard
-
-# ── Disable Keeper (not needed for single-replica) ────────────────
-keeper:
-  enabled: false
-
-# ── Use ClusterIP (will port-forward to access) ───────────────────
+  size: "5Gi"
+  storageClass: "standard"
 service:
   type: ClusterIP
-  ports:
-    http: 8123
-    tcp: 9000
-
-# ── Minimal ClickHouse config to reduce memory footprint ──────────
-extraConfiguration: |
-  <clickhouse>
-    <mark_cache_size>134217728</mark_cache_size>
-    <uncompressed_cache_size>268435456</uncompressed_cache_size>
-    <max_connections>100</max_connections>
-    <max_concurrent_queries>20</max_concurrent_queries>
-    <max_server_memory_usage_to_ram_ratio>0.7</max_server_memory_usage_to_ram_ratio>
-  </clickhouse>
+keeper:
+  enabled: false

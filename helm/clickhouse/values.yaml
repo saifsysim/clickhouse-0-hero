@@ -1,18 +1,39 @@
-# Default values for local development
+# ══════════════════════════════════════════════════════════
+# ClickHouse Helm Chart — default values (local dev)
+# Override per environment:
+#   helm install ch ./clickhouse -f values-prod.yaml
+#   helm install ch ./clickhouse -f values-aws.yaml
+# Or inline:
+#   helm install ch ./clickhouse --set replicaCount=3
+# ══════════════════════════════════════════════════════════
+
+# ── Chart naming ───────────────────────────────────────────
+# Override to control resource names (default: release name)
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Container image ────────────────────────────────────────
 image:
   repository: clickhouse/clickhouse-server
-  tag: "24.3-alpine"
-  pullPolicy: IfNotPresent
+  tag: "24.3-alpine"       # pin a specific version for reproducibility
+  pullPolicy: IfNotPresent  # use Always in CI; Never for air-gapped
 
-# Credentials — stored in a k8s Secret
+# ── Credentials (stored in a k8s Secret) ──────────────────
 auth:
   username: admin
   password: "localdev123"
+  # existingSecret: my-secret   # use this to supply a pre-existing Secret
+  # existingSecretKey: password  # key inside the Secret
 
-# Single replica for local dev
+# ── Replica count ─────────────────────────────────────────
+# Single replica for local; set to 3 for HA (needs Keeper below)
 replicaCount: 1
 
-# Low-memory resources: fits in ~2 GB total on laptop
+# ── Resources ──────────────────────────────────────────────
+# Profiles:
+#   local:  requests 512Mi/250m | limits 1.5Gi/1
+#   small:  requests 2Gi/1      | limits 4Gi/2
+#   prod:   requests 8Gi/2      | limits 16Gi/8
 resources:
   requests:
     memory: "512Mi"
@@ -21,13 +42,106 @@ resources:
     memory: "1.5Gi"
     cpu: "1"
 
-# PVC — 5Gi is enough for demos (kind uses standard/local-path)
+# ── Persistent storage ────────────────────────────────────
 persistence:
   enabled: true
-  storageClass: "standard"
   size: "5Gi"
+  # StorageClass per environment:
+  #   local/kind:  standard
+  #   AWS EKS:     gp3
+  #   GKE:         premium-rwo
+  #   AKS:         managed-premium
+  storageClass: "standard"
+  accessMode: ReadWriteOnce
 
-# Service — ClusterIP, use port-forward to access
+# ── Service ────────────────────────────────────────────────
 service:
-  http: 8123
-  tcp: 9000
+  # ClusterIP  — access via port-forward (local dev)
+  # NodePort   — access via node IP (kind, bare-metal)
+  # LoadBalancer — cloud LB (AWS ELB, GCP LB, etc.)
+  type: ClusterIP
+  http: 8123      # HTTP interface (curl, JDBC, Grafana)
+  tcp:  9000      # Native TCP (clickhouse-client)
+  annotations: {}  # e.g. service.beta.kubernetes.io/aws-load-balancer-type: nlb
+
+# ── Ingress (optional) ────────────────────────────────────
+ingress:
+  enabled: false
+  className: "nginx"          # ingress controller: nginx, traefik, alb
+  host: "clickhouse.example.com"
+  tls: false
+  tlsSecret: ""
+  annotations: {}
+    # nginx.ingress.kubernetes.io/backend-protocol: HTTP
+
+# ── Pod scheduling ────────────────────────────────────────
+nodeSelector: {}
+tolerations: []
+affinity: {}
+# Recommended for multi-replica: spread pods across nodes
+# affinity:
+#   podAntiAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       - labelSelector:
+#           matchLabels:
+#             app: clickhouse
+#         topologyKey: kubernetes.io/hostname
+
+# ── Pod annotations / labels ─────────────────────────────
+podAnnotations: {}
+podLabels: {}
+
+# ── Security context ──────────────────────────────────────
+podSecurityContext: {}
+containerSecurityContext: {}
+
+# ── Extra environment variables ───────────────────────────
+# Injected into the clickhouse container
+extraEnvVars: []
+# - name: MY_FEATURE_FLAG
+#   value: "true"
+# - name: SECRET_KEY
+#   valueFrom:
+#     secretKeyRef:
+#       name: my-secret
+#       key: key
+
+# ── Extra ClickHouse XML config ───────────────────────────
+# Injected as /etc/clickhouse-server/config.d/extra.xml
+extraConfig: |
+  <clickhouse>
+    <mark_cache_size>134217728</mark_cache_size>
+    <uncompressed_cache_size>268435456</uncompressed_cache_size>
+    <max_connections>100</max_connections>
+    <max_concurrent_queries>20</max_concurrent_queries>
+    <max_server_memory_usage_to_ram_ratio>0.7</max_server_memory_usage_to_ram_ratio>
+  </clickhouse>
+
+# ── Liveness / Readiness probe tuning ────────────────────
+probes:
+  liveness:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 5
+  readiness:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+# ── ClickHouse Keeper (disabled for single-node) ──────────
+# Enable for ReplicatedMergeTree HA setups (replicaCount >= 2)
+keeper:
+  enabled: false
+  replicaCount: 3     # always odd
+  image:
+    repository: clickhouse/clickhouse-keeper
+    tag: "24.3-alpine"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  persistence:
+    size: "2Gi"
+    storageClass: "standard"

@@ -1,43 +1,74 @@
-{{/* Secret for ClickHouse credentials */}}
+{{/* ─── Helpers ──────────────────────────────────────────────────────────────── */}}
+{{- define "clickhouse.name" -}}
+{{- default .Release.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "clickhouse.labels" -}}
+app: {{ include "clickhouse.name" . }}
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/* ─── Secret ───────────────────────────────────────────────────────────────── */}}
+{{- if not .Values.auth.existingSecret }}
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Release.Name }}-secret
+  name: {{ include "clickhouse.name" . }}-secret
   namespace: {{ .Release.Namespace }}
+  labels: {{- include "clickhouse.labels" . | nindent 4 }}
 type: Opaque
 stringData:
   password: {{ .Values.auth.password | quote }}
 ---
-{{/* Headless Service — stable DNS for the StatefulSet pods */}}
+{{- end }}
+
+{{/* ─── ConfigMap (extra ClickHouse XML) ───────────────────────────────────── */}}
+{{- if .Values.extraConfig }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clickhouse.name" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "clickhouse.labels" . | nindent 4 }}
+data:
+  extra.xml: |
+    {{- .Values.extraConfig | nindent 4 }}
+---
+{{- end }}
+
+{{/* ─── Headless Service (stable DNS for StatefulSet pods) ────────────────── */}}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-headless
+  name: {{ include "clickhouse.name" . }}-headless
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ .Release.Name }}
+  labels: {{- include "clickhouse.labels" . | nindent 4 }}
 spec:
   clusterIP: None
   selector:
-    app: {{ .Release.Name }}
+    app: {{ include "clickhouse.name" . }}
   ports:
     - name: http
       port: {{ .Values.service.http }}
     - name: tcp
       port: {{ .Values.service.tcp }}
 ---
-{{/* Client Service — used for port-forwarding */}}
+
+{{/* ─── Client Service ──────────────────────────────────────────────────────── */}}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "clickhouse.name" . }}
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ .Release.Name }}
+  labels: {{- include "clickhouse.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.service.type }}
   selector:
-    app: {{ .Release.Name }}
+    app: {{ include "clickhouse.name" . }}
   ports:
     - name: http
       port: {{ .Values.service.http }}
@@ -46,29 +77,84 @@ spec:
       port: {{ .Values.service.tcp }}
       targetPort: {{ .Values.service.tcp }}
 ---
-{{/* StatefulSet — one pod with a PVC for data persistence */}}
+
+{{/* ─── Ingress (optional) ──────────────────────────────────────────────────── */}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "clickhouse.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "clickhouse.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ .Values.ingress.host }}]
+      secretName: {{ .Values.ingress.tlsSecret | default (printf "%s-tls" (include "clickhouse.name" .)) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "clickhouse.name" . }}
+                port:
+                  number: {{ .Values.service.http }}
+---
+{{- end }}
+
+{{/* ─── StatefulSet ─────────────────────────────────────────────────────────── */}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "clickhouse.name" . }}
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ .Release.Name }}
+  labels: {{- include "clickhouse.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ .Release.Name }}-headless
+  serviceName: {{ include "clickhouse.name" . }}-headless
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: {{ include "clickhouse.name" . }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
+        app: {{ include "clickhouse.name" . }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations: {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: clickhouse
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext: {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.http }}
@@ -80,36 +166,50 @@ spec:
             - name: CLICKHOUSE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secret
-                  key: password
+                  name: {{ .Values.auth.existingSecret | default (printf "%s-secret" (include "clickhouse.name" .)) }}
+                  key: {{ .Values.auth.existingSecretKey | default "password" }}
             - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
               value: "1"
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.persistence.enabled }}
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
+            {{- if .Values.persistence.enabled }}
             - name: data
               mountPath: /var/lib/clickhouse
-          {{- end }}
+            {{- end }}
+            {{- if .Values.extraConfig }}
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/extra.xml
+              subPath: extra.xml
+              readOnly: true
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /ping
               port: {{ .Values.service.http }}
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            failureThreshold: 5
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
           readinessProbe:
             httpGet:
               path: /ping
               port: {{ .Values.service.http }}
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+      {{- if .Values.extraConfig }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "clickhouse.name" . }}-config
+      {{- end }}
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:
         name: data
       spec:
-        accessModes: ["ReadWriteOnce"]
+        accessModes: ["{{ .Values.persistence.accessMode }}"]
         storageClassName: {{ .Values.persistence.storageClass | quote }}
         resources:
           requests:
