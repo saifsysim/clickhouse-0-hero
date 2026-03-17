@@ -29,6 +29,7 @@ function switchTab(tab, btn) {
   if (tab === 'shoppers') initShoppers();
   if (tab === 'compare') initComparePage();
   if (tab === 'faq') initFaqPage();
+  if (tab === 'k8s') initK8sPage();
 }
 
 // Navigate to a tab from within the Learning Guide (without needing a button ref)

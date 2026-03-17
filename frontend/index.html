@@ -132,6 +132,11 @@
         ❓ ClickHouse FAQ
       </button>
 
+      <button class="nav-item" data-tab="k8s" onclick="switchTab('k8s',this)"
+        style="background:linear-gradient(135deg,rgba(16,185,129,.06),rgba(59,130,246,.06));border:1px solid rgba(59,130,246,.2)">
+        ☕ Kubernetes / Helm
+      </button>
+
       <div class="nav-section-label">Overview</div>
       <button class="nav-item active" data-tab="home" onclick="switchTab('home',this)">
         <svg viewBox="0 0 24 24" fill="none">
@@ -3259,6 +3264,11 @@ GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
       <div id="faq-root"></div>
     </section><!-- end tab-faq -->
 
+    <!-- ─── KUBERNETES / HELM ──────────────────────────────────── -->
+    <section class="tab-panel" id="tab-k8s">
+      <div id="k8s-root"></div>
+    </section><!-- end tab-k8s -->
+
 
   </main>
 
@@ -3268,6 +3278,7 @@ GROUP BY service ORDER BY dau DESC;" oninput="explainQuery()"></textarea>
   <script src="shoppers.js"></script>
   <script src="compare.js"></script>
   <script src="faq.js"></script>
+  <script src="k8s.js"></script>
 </body>
 
 </html>
